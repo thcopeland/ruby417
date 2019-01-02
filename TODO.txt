@@ -1,0 +1,4 @@
+Add documentation
+Optimize Hough & Scanners
+Add specific errors for scanning failures, lines, etc
+Tests!
