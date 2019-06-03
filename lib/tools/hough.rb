@@ -1,17 +1,6 @@
 module Ruby417
-  module Tool
-    class HoughLines
-      include Ruby417::Tool::Geometry
-
-      class HoughLine < HessLine
-        attr_accessor :votes
-
-        def initialize(rho, theta, votes)
-          @votes = votes
-          super(rho, theta)
-        end
-      end
-
+  module Tools
+    class Hough
       MAX_THETA_VALUE  = Math::PI
       RHO_SCALE_FACTOR = 2
 
@@ -23,29 +12,13 @@ module Ruby417
         @max_rho_value    = max_rho_value
       end
 
-      def self.maximum_rho(points)
+      def self.calculate_diagonal(points)
         max = points.max_by { |p| p.x**2 + p.y**2 }
         (Math.sqrt(max.x**2+max.y**2)+1).to_i
       end
 
-      def extract_lines(points, threshold:)
-        lines = []
-
-        accumulate_votes(points).each_with_index do |row, rho_index|
-          row.each_with_index do |vote_count, theta_index|
-            if vote_count >= threshold
-              rho   = rho_value_from_index(rho_index)
-              theta = theta_value_from_index(theta_index)
-              lines << HoughLine.new(rho, theta, vote_count)
-            end
-          end
-        end
-
-        lines
-      end
-
       def accumulate_votes(points)
-        accumulator = create_zeros_array(rho_resolution*RHO_SCALE_FACTOR, theta_resolution)
+        accumulator = create_accumulator_array(rho_resolution*RHO_SCALE_FACTOR, theta_resolution)
         stored_thetas = expand_range(0, MAX_THETA_VALUE, theta_resolution)
 
         points.each do |point|
@@ -57,6 +30,51 @@ module Ruby417
         end
 
         accumulator
+      end
+
+      def find_lines(points, window:, threshold:)
+        [].tap do |lines|
+          accumulated = accumulate_votes(points)
+
+          accumulated.each_with_index do |row, rho_index|
+            row.each_with_index do |score, theta_index|
+              if score >= threshold
+                case test_maximality(accumulated, rho_index, theta_index, window)
+                when :tie
+                  accumulated[rho_index][theta_index] = 0
+                when :max
+                  rho   = rho_value_from_index(rho_index)
+                  theta = theta_value_from_index(theta_index)
+                  lines << HoughLine.new(rho, theta, score)
+                end
+              end
+            end
+          end
+
+          accumulated.clear
+        end
+      end
+
+      def test_maximality(accumulator, rho, theta, window)
+        score = accumulator[rho][theta]
+        rho_from,   rho_to   = window_range(rho, window, accumulator.length-1)
+        theta_from, theta_to = window_range(theta, window, accumulator.first.length-1)
+
+        rho_from.upto(rho_to) do |r|
+          theta_from.upto(theta_to) do |t|
+            if accumulator[r][t] > score
+              return :not # => not a max at all
+            elsif accumulator[r][t] == score && (r != rho || t != theta)
+              return :tie # => not unique, though may or may not equal to max
+            end
+          end
+        end
+
+        :max # => local max
+      end
+
+      def window_range(x, window, max)
+        [(x-window).clamp(0, max), (x+window).clamp(0, max)]
       end
 
       def expand_range(min, max, resolution)
@@ -79,8 +97,17 @@ module Ruby417
         x*Math.sin(theta) - y*Math.cos(theta)
       end
 
-      def create_zeros_array(length, width)
+      def create_accumulator_array(length, width)
         Array.new(length) { Array.new(width, 0) }
+      end
+    end
+
+    class HoughLine < Ruby417::Tools::Geometry::HesseLine
+      attr_reader :score
+
+      def initialize(rho, theta, score)
+        @score = score
+        super(rho, theta)
       end
     end
   end

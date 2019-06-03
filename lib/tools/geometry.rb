@@ -1,9 +1,9 @@
 module Ruby417
-  module Tool
+  module Tools
     module Geometry
       Point = Struct.new(:x, :y)
 
-      class HessLine
+      class HesseLine
         attr_accessor :rho, :theta
 
         def initialize(rho, theta)
@@ -20,14 +20,6 @@ module Ruby417
 
         def initialize(a, b, c)
           @a, @b, @c = a, b, c # a*x + b*y + c = 0
-        end
-
-        def x_given_y(y)
-          -(b*y + c) / a.to_f # FIXME what if a is nil?
-        end
-
-        def y_given_x(x)
-          -(a*x + c) / b.to_f
         end
 
         def normal_distance_to(point)
