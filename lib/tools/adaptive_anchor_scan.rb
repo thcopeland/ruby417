@@ -1,19 +1,18 @@
 module Ruby417
-  module Tool
+  module Tools
     DetectedAnchor = Struct.new(:left, :right, :y, :score)
     AdaptiveThreshold = Struct.new(:intensity, :deviation)
 
     SELECTION_RATE = 1
 
     class AdaptiveAnchorScan
-      attr_reader :resolution, :min_width, :blur_distance, :qualifier, :calibrator
+      attr_reader :resolution, :min_width, :qualifier, :calibrator
 
-      def initialize(calibration_resolution:, min_anchor_width:, blurring:, anchor_qualifier:, threshold_calibrator:)
+      def initialize(calibration_resolution:, min_anchor_width:, anchor_qualifier:, threshold_calibrator:)
         @resolution = calibration_resolution
         @min_width  = min_anchor_width
         @qualifier  = anchor_qualifier
         @calibrator = threshold_calibrator
-        @blur_distance = blurring + 1
       end
 
       def scan_image(pixels)
@@ -52,7 +51,8 @@ module Ruby417
             anchor_width = lookahead - scanner
 
             if anchor_width >= min_width
-              matches << DetectedAnchor.new(scanner, lookahead, y, qualifier.call(scanner, anchor_width, lookahead, pixel_row))
+              score = qualifier.call(scanner, anchor_width, lookahead, pixel_row)
+              matches << DetectedAnchor.new(scanner, lookahead, y, score) if score != false
             end
 
             scanner = lookahead + 1
@@ -65,11 +65,11 @@ module Ruby417
       end
 
       def consume_bright(x, pixels, thresholds, threshold=threshold(x, pixels, thresholds))
-        x += 1 while x < pixels.length && (bright?(pixels[x], threshold) || bright?(blurred_intensity(pixels, x), threshold)); x
+        x += 1 while x < pixels.length && bright?(pixels[x], threshold); x
       end
 
       def consume_dark(x, pixels, thresholds, threshold=threshold(x, pixels, thresholds))
-        x += 1 while x < pixels.length && (dark?(pixels[x], threshold) || dark?(blurred_intensity(pixels, x), threshold)); x
+        x += 1 while x < pixels.length && dark?(pixels[x], threshold); x
       end
 
       def threshold(x, pixel_row, thresholds)
@@ -82,10 +82,6 @@ module Ruby417
 
       def dark?(intensity, threshold)
         intensity <= threshold.intensity + threshold.deviation
-      end
-
-      def blurred_intensity(pixels, x)
-        pixels.slice(x, blur_distance).sum.to_i / blur_distance # to_i eliminates the null from summing an empty array
       end
     end
   end
