@@ -1,4 +1,4 @@
-#include <stdlib.h>
+#include <glib.h>
 
 #define rd_matrix_read(m, w, h, x, y, fallback)                                 \
   (((x) >= 0 && (y) >= 0 && (x) < (w) && (y) < (h)) ?                           \
@@ -11,111 +11,68 @@
     (m)[(x)+(y)*(w)] = (val);                                                   \
 } while(0)
 
-#define UF_GROWTH_FACTOR 2
+static void uf_union(GArray*, gint32, gint32);
+static gint32 uf_find(GArray*, gint32);
 
-typedef struct UFConnections {
-  int *sites;
-  int size;
-} UFConnections;
+static gint32 *rd_label_image_regions(guint8*, gint32, gint32);
+static gint32 rd_determine_label(guint8*, gint32*, gint32, gint32, GArray*, gint32, gint32);
 
-static UFConnections *uf_alloc_connections(int);
-static void uf_free_connections(UFConnections*);
-static _Bool uf_resize_connections(UFConnections*);
-static void uf_union(UFConnections*, int, int);
-static int uf_find(UFConnections*, int);
-
-static int *rd_label_image_regions(char*, int, int);
-static int rd_determine_label(char*, int*, int, int, UFConnections*, int, int);
-
-static RDRegion *rd_extract_regions(char*, int, int, int);
-
-static UFConnections *uf_alloc_connections(int size){
-  UFConnections *conns = malloc(sizeof(UFConnections));
-
-  if(conns){
-    conns->size = size;
-    conns->sites = malloc(sizeof(int) * size);
-
-    if(conns->sites){
-      for(int i=0; i<size; i++)
-        conns->sites[i] = i;
-    } else {
-      free(conns);
-      return NULL;
-    }
+static void uf_union(GArray *acc, gint32 a, gint32 b){
+  for(gint32 z = acc->len; z <= MAX(a, b); z++){
+    g_array_append_val(acc, z);
   }
 
-  return conns;
+  gint32 *tmp = &g_array_index(acc, gint32, uf_find(acc, a));
+  *tmp = uf_find(acc, b);
 }
 
-static void uf_free_connections(UFConnections *connections){
-  free(connections->sites);
-  free(connections);
-}
-
-static _Bool uf_resize_connections(UFConnections *connections){
-  int *new_connections = realloc(connections->sites, sizeof(int)*connections->size*UF_GROWTH_FACTOR);
-
-  if(new_connections){
-    for(int i=connections->size; i<connections->size*UF_GROWTH_FACTOR; i++)
-      new_connections[i] = i;
-
-    connections->sites = new_connections;
-    connections->size *= UF_GROWTH_FACTOR;
-    return 1;
-  }
-
-  return 0;
-}
-
-static void uf_union(UFConnections *connections, int a, int b){
-  if(a < connections->size && b < connections->size)
-    connections->sites[a] = connections->sites[b];
-}
-
-static int uf_find(UFConnections *connections, int site){
-  if(connections->sites[site] == site)
+static gint32 uf_find(GArray *acc, gint32 site){
+  if(site < 0 || site >= acc->len){
+    return -1;
+  } else if(g_array_index(acc, gint32, site) == site){
     return site;
-  return connections->sites[site] = uf_find(connections, connections->sites[site]);
+  } else {
+    gint32 *tmp = &g_array_index(acc, gint32, site);
+    return (*tmp = uf_find(acc, *tmp));
+  }
 }
 
-static int *rd_label_image_regions(char *image, int width, int height){
-  int *labels = calloc(width*height, sizeof(int));
-  UFConnections *label_eqvs = uf_alloc_connections(width);
-  if(!(labels && label_eqvs)) goto hard_exit;
+static gint32 *rd_label_image_regions(guint8 *image, gint32 width, gint32 height){
+  gint32 *labels = calloc(width*height, sizeof(gint32));
+  GArray *label_eqvs = g_array_new(FALSE, FALSE, sizeof(gint32));
+  if(!labels || !label_eqvs) goto fast_exit;
 
-  int x, y, pixel_label, current_label = 1;
-  for(y=0; y<height; y++){
-    for(x=0; x<width; x++){
+  gint32 x, y, pixel_label, current_label = 1;
+  for(y = 0; y < height; y++){
+    for(x = 0; x < width; x++){
       pixel_label = rd_determine_label(image, labels, width, height, label_eqvs, x, y);
 
       if(pixel_label) {
         rd_matrix_set(labels, width, height, x, y, pixel_label);
       } else {
-        rd_matrix_set(labels, width, height, x, y, current_label++);
-
-        if(current_label == label_eqvs->size)
-          if(!uf_resize_connections(label_eqvs)) goto soft_exit;
+        rd_matrix_set(labels, width, height, x, y, current_label);
+        uf_union(label_eqvs, current_label, current_label);
+        current_label++;
       }
     }
   }
 
-soft_exit:
-  for(int z=0; z<width*height; z++)
+  for(gint32 z = 0; z < width*height; z++){
     labels[z] = uf_find(label_eqvs, labels[z]);
+  }
 
-hard_exit:
-  if(label_eqvs) uf_free_connections(label_eqvs);
+fast_exit:
+  g_array_free(label_eqvs, TRUE);
 
   return labels;
 }
 
-static int rd_determine_label(char *image, int *labels, int width, int height, UFConnections *eqvs, int x, int y){
+static gint32 rd_determine_label(guint8 *image, gint32 *labels, gint32 width, gint32 height, GArray *eqvs, gint32 x, gint32 y){
   static int offsets[2][2] = {{-1, 0}, {0, -1}}; /* 4-connectivity */
 
-  char color = rd_matrix_read(image, width, height, x, y, 0);
-  int nx, ny, neighbor_label, best_label = 0;
-  for(int i=0; i<2; i++){
+  guint8 color = rd_matrix_read(image, width, height, x, y, 0);
+  gint32 nx, ny, neighbor_label, best_label = 0;
+  for(int i = 0; i < 2; i++){
     nx = offsets[i][0] + x;
     ny = offsets[i][1] + y;
 
