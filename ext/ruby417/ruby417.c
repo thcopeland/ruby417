@@ -1,6 +1,5 @@
-#include <glib.h>
 #include <stdlib.h>
-#include <stdio.h>
+#include <glib.h>
 
 #define rd_matrix_read(m, w, h, x, y, fallback)                                 \
   (((x) >= 0 && (y) >= 0 && (x) < (w) && (y) < (h)) ?                           \
@@ -31,9 +30,8 @@ static RDContourPoint *rd_point_new(gint16, gint16);
 static RDRegion *rd_region_new(void);
 static void rd_region_free(RDRegion*);
 
-static GList *rd_extract_region_contours(guint8*, gint16, gint16, gint32);
+static GList *rd_extract_region_contours(guint8*, gint16, gint16);
 static GList *rd_extract_contour(gint32*, gint16, gint16, gint16, gint16);
-static gboolean rd_filter_by_area(gpointer, gpointer, gpointer);
 
 static void uf_union(GArray *acc, gint32 a, gint32 b){
   for(gint32 z = acc->len; z <= MAX(a, b); z++){
@@ -137,7 +135,7 @@ static void rd_region_free(RDRegion *region)
   free(region);
 }
 
-static GList *rd_extract_region_contours(guint8 *image, gint16 width, gint16 height, gint32 area_threshold)
+static GList *rd_extract_region_contours(guint8 *image, gint16 width, gint16 height)
 {
   GList *regions = NULL;
   GHashTable *region_lookup = g_hash_table_new(g_direct_hash, g_direct_equal);
@@ -167,8 +165,6 @@ static GList *rd_extract_region_contours(guint8 *image, gint16 width, gint16 hei
       region->cy += y;
     }
   }
-
-  g_hash_table_foreach_remove(region_lookup, (GHRFunc) rd_filter_by_area, &area_threshold);
 
   regions = g_hash_table_get_values(region_lookup);
 
@@ -218,37 +214,3 @@ nomem:
   g_list_free_full(contour, (GDestroyNotify) free);
   return NULL;
 }
-
-static gboolean rd_filter_by_area(gpointer label_ptr, gpointer region_ptr, gpointer threshold_ptr)
-{
-  return ((RDRegion *) region_ptr)->area < *(gint32 *) threshold_ptr;
-}
-
-
-int main(int argc, char **argv) {
-  static guint8 image[] = {
-    0, 0, 0, 0,
-    0, 1, 1, 0,
-    1, 1, 1, 1,
-    0, 1, 1, 1
-  };
-
-  // gint32 *labels = rd_label_image_regions(image, 4, 4);
-  // GList *contour = rd_extract_contour(labels, 4, 4, 0, 0);
-
-  // for(GList *r=contour; r; r=r->next){
-  //   RDContourPoint *p = (RDContourPoint*) r->data;
-  //   printf("%i,%i\n", p->x, p->y);
-  // }
-  GList *regions = rd_extract_region_contours(image, 4, 4, 4);
-  for(GList *r=regions; r; r=r->next){
-    RDRegion *rd = ((RDRegion*) r->data);
-    printf("Area: %i, Perimeter: %i\n", rd->area, g_list_length(rd->contour));
-  }
-  g_list_free_full(regions, (GDestroyNotify) rd_region_free);
-}
-
-/* TODO
- * image struct
- * clean up
- */
