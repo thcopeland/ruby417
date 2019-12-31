@@ -1,4 +1,4 @@
-static guint8 test_image[] = {
+static guint8 test_rl_image[] = {
   0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
   0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
@@ -17,7 +17,7 @@ static guint8 test_image[] = {
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
-static gint32 test_regions[] = {
+static gint32 test_rl_regions[] = {
   3, 8, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
   3, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 3,
   3, 8, 9, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8, 3,
@@ -37,7 +37,7 @@ static gint32 test_regions[] = {
 };
 
 static void test_region_labeling(void) {
-  gint32 *labeled = rd_label_image_regions(test_image, 16, 16);
-  g_assert_cmpmem(labeled, 256*sizeof(gint32), test_regions, 256*sizeof(gint32));
+  gint32 *labeled = rd_label_image_regions(test_rl_image, 16, 16);
+  g_assert_cmpmem(labeled, 256*sizeof(gint32), test_rl_regions, 256*sizeof(gint32));
   free(labeled);
 }

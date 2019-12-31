@@ -187,7 +187,7 @@ static GList *rd_extract_contour(gint32 *labels, gint16 width, gint16 height, gi
   static const gint RIGHT = 0, DOWN = 1, LEFT = 2, UP = 3;
 
   GList *contour = NULL;
-  RDContourPoint *point;
+  RDContourPoint *point = NULL;
   gint32 label, target_label = rd_matrix_read(labels, width, height, start_x, start_y, 0);
   gint direction = RIGHT;
   gint16 x = start_x, y = start_y;
@@ -197,10 +197,12 @@ static GList *rd_extract_contour(gint32 *labels, gint16 width, gint16 height, gi
       label = rd_matrix_read(labels, width, height, x, y, ~target_label);
 
       if (label == target_label) {
-        point = rd_point_new(x, y);
-        if (!point) goto nomem;
+        if (!point || x != point->x || y != point->y) {
+          point = rd_point_new(x, y);
+          if (!point) goto nomem;
 
-        contour = g_list_append(contour, point);
+          contour = g_list_append(contour, point);
+        }
         direction = (direction - 1) & 3; /* left turn */
       } else {
          direction = (direction + 1) & 3; /* right turn */
