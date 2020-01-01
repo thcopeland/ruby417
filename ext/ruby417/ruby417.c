@@ -1,15 +1,34 @@
 #include <stdlib.h>
 #include <glib.h>
 
-#define rd_matrix_read(m, w, h, x, y, fallback)                                 \
-  (((x) >= 0 && (y) >= 0 && (x) < (w) && (y) < (h)) ?                           \
-    (m)[(x)+(y)*(w)]                                                            \
-  :                                                                             \
-    (fallback))
+typedef struct {
+  gint16 width, height;
+  guint8 *data;
+} RDImage;
 
-#define rd_matrix_set(m, w, h, x, y, val) do {                                  \
-  if ((x) >= 0 && (y) >= 0 && (x) < (w) && (y) < (h))                           \
-    (m)[(x)+(y)*(w)] = (val);                                                   \
+typedef struct {
+  gint16 width, height;
+  gint32 *data;
+} RDMatrix;
+
+#define rd_matrix_read_fast(m, x, y) (m)->data[(x) + (y)*(m)->width]
+
+#define rd_matrix_read_safe(m, x, y, fallback)                                  \
+  (((x) >= 0 && (y) >= 0 && (x) < (m)->width && (y) < (m)->height) ?            \
+      rd_matrix_read_fast(m, x, y)                                              \
+    :                                                                           \
+      (fallback))
+
+#define rd_matrix_set(m, x, y, val) do {                                        \
+  if ((x) >= 0 && (y) >= 0 && (x) < (m)->width && (y) < (m)->height)            \
+    (m)->data[(x)+(y)*(m)->width] = (val);                                      \
+  } while(0)
+
+#define rd_matrix_free(m) do {                                                  \
+  if(m) {                                                                       \
+    free(m->data);                                                              \
+    free(m);                                                                    \
+  }                                                                             \
 } while(0)
 
 typedef struct { gint16 x, y; } RDContourPoint;
@@ -23,15 +42,18 @@ typedef struct {
 static void uf_union(GArray*, gint32, gint32);
 static gint32 uf_find(GArray*, gint32);
 
-static gint32 *rd_label_image_regions(guint8*, gint32, gint32);
-static gint32 rd_determine_label(guint8*, gint32*, gint32, gint32, GArray*, gint32, gint32);
+static RDMatrix *rd_matrix_new(gint16, gint16);
+static RDImage *rd_image_new(guint8*, gint16, gint16);
+
+static RDMatrix *rd_label_image_regions(RDImage*);
+static gint32 rd_determine_label(RDImage*, RDMatrix*, GArray*, gint16, gint16);
 
 static RDContourPoint *rd_point_new(gint16, gint16);
 static RDRegion *rd_region_new(void);
 static void rd_region_free(RDRegion*);
 
-static GList *rd_extract_region_contours(guint8*, gint16, gint16);
-static GList *rd_extract_contour(gint32*, gint16, gint16, gint16, gint16);
+static GList *rd_extract_region_contours(RDImage*);
+static GList *rd_extract_contour(RDMatrix*, gint16, gint16);
 
 static void uf_union(GArray *acc, gint32 a, gint32 b)
 {
@@ -55,29 +77,60 @@ static gint32 uf_find(GArray *acc, gint32 site)
   }
 }
 
-static gint32 *rd_label_image_regions(guint8 *image, gint32 width, gint32 height)
+static RDMatrix *rd_matrix_new(gint16 width, gint16 height)
 {
-  gint32 *labels = calloc(width*height, sizeof(gint32));
+  RDMatrix *m = malloc(sizeof(RDMatrix));
+
+  if (m) {
+    m->width = width;
+    m->height = height;
+    m->data = calloc(width*height, sizeof(m->data[0]));
+
+    if(!m->data) {
+      free(m);
+      return NULL;
+    }
+  }
+
+  return m;
+}
+
+static RDImage *rd_image_new(guint8 *data, gint16 width, gint16 height)
+{
+  RDImage *i = malloc(sizeof(RDImage));
+
+  if (i) {
+    i->width = width;
+    i->height = height;
+    i->data = data;
+  }
+
+  return i;
+}
+
+static RDMatrix *rd_label_image_regions(RDImage *image)
+{
+  RDMatrix *labels = rd_matrix_new(image->width, image->height);
   GArray *label_eqvs = g_array_new(FALSE, FALSE, sizeof(gint32));
   if (!labels || !label_eqvs) goto abort;
 
   gint32 x, y, pixel_label, current_label = 1;
-  for (y = 0; y < height; y++) {
-    for (x = 0; x < width; x++) {
-      pixel_label = rd_determine_label(image, labels, width, height, label_eqvs, x, y);
+  for (y = 0; y < image->height; y++) {
+    for (x = 0; x < image->width; x++) {
+      pixel_label = rd_determine_label(image, labels, label_eqvs, x, y);
 
       if (pixel_label) {
-        rd_matrix_set(labels, width, height, x, y, pixel_label);
+        rd_matrix_set(labels, x, y, pixel_label);
       } else {
-        rd_matrix_set(labels, width, height, x, y, current_label);
+        rd_matrix_set(labels, x, y, current_label);
         uf_union(label_eqvs, current_label, current_label);
         current_label++;
       }
     }
   }
 
-  for (gint32 z = 0; z < width*height; z++) {
-    labels[z] = uf_find(label_eqvs, labels[z]);
+  for (gint32 z = 0; z < image->width*image->height; z++) {
+    labels->data[z] = uf_find(label_eqvs, labels->data[z]);
   }
 
 abort:
@@ -86,19 +139,19 @@ abort:
   return labels;
 }
 
-static gint32 rd_determine_label(guint8 *image, gint32 *labels, gint32 width, gint32 height, GArray *eqvs, gint32 x, gint32 y)
+static gint32 rd_determine_label(RDImage *image, RDMatrix *labels, GArray *eqvs, gint16 x, gint16 y)
 {
-  static int offsets[2][2] = {{-1, 0}, {0, -1}}; /* 4-connectivity */
+  static const int offsets[2][2] = {{-1, 0}, {0, -1}}; /* 4-connectivity */
 
-  guint8 color = rd_matrix_read(image, width, height, x, y, 0);
+  guint8 color = rd_matrix_read_fast(image, x, y);
   gint32 nx, ny, neighbor_label, best_label = 0;
 
   for (int i = 0; i < 2; i++) {
     nx = offsets[i][0] + x;
     ny = offsets[i][1] + y;
 
-    if (color == rd_matrix_read(image, width, height, nx, ny, ~color)) {
-      neighbor_label = rd_matrix_read(labels, width, height, nx, ny, best_label);
+    if (color == rd_matrix_read_safe(image, nx, ny, ~color)) {
+      neighbor_label = rd_matrix_read_fast(labels, nx, ny);
 
       if (best_label) uf_union(eqvs, best_label, neighbor_label);
       if (!best_label || neighbor_label < best_label) best_label = neighbor_label;
@@ -140,27 +193,27 @@ static void rd_region_free(RDRegion *region)
   free(region);
 }
 
-static GList *rd_extract_region_contours(guint8 *image, gint16 width, gint16 height)
+static GList *rd_extract_region_contours(RDImage *image)
 {
   GList *regions = NULL;
   GHashTable *region_lookup = g_hash_table_new(g_direct_hash, g_direct_equal);
-  gint32 *labels = rd_label_image_regions(image, width, height);
+  RDMatrix *labels = rd_label_image_regions(image);
   if (!labels || !region_lookup) goto abort;
 
   gint16 x, y;
   gpointer lookup_key;
   RDRegion *region;
 
-  for (y = 0; y < height; y++) {
-    for (x = 0; x < width; x++) {
-      lookup_key = GINT_TO_POINTER(rd_matrix_read(labels, width, height, x, y, 0));
+  for (y = 0; y < image->height; y++) {
+    for (x = 0; x < image->width; x++) {
+      lookup_key = GINT_TO_POINTER(rd_matrix_read_fast(labels, x, y));
       region = g_hash_table_lookup(region_lookup, lookup_key);
 
       if (!region) {
         region = rd_region_new();
         if (!region) goto abort;
 
-        region->contour = rd_extract_contour(labels, width, height, x, y);
+        region->contour = rd_extract_contour(labels, x, y);
         if (!region->contour) goto abort;
 
         g_hash_table_insert(region_lookup, lookup_key, region);
@@ -176,25 +229,25 @@ static GList *rd_extract_region_contours(guint8 *image, gint16 width, gint16 hei
 
 abort:
 
-  free(labels);
+  rd_matrix_free(labels);
   g_hash_table_destroy(region_lookup);
 
   return regions;
 }
 
-static GList *rd_extract_contour(gint32 *labels, gint16 width, gint16 height, gint16 start_x, gint16 start_y)
+static GList *rd_extract_contour(RDMatrix *labels, gint16 start_x, gint16 start_y)
 {
   static const gint RIGHT = 0, DOWN = 1, LEFT = 2, UP = 3;
 
   GList *contour = NULL;
   RDContourPoint *point = NULL;
-  gint32 label, target_label = rd_matrix_read(labels, width, height, start_x, start_y, 0);
+  gint32 label, target_label = rd_matrix_read_fast(labels, start_x, start_y);
   gint direction = RIGHT;
   gint16 x = start_x, y = start_y;
 
   do
     {
-      label = rd_matrix_read(labels, width, height, x, y, ~target_label);
+      label = rd_matrix_read_safe(labels, x, y, ~target_label);
 
       if (label == target_label) {
         if (!point || x != point->x || y != point->y) {

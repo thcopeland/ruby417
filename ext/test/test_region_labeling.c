@@ -37,7 +37,7 @@ static gint32 test_rl_regions[] = {
 };
 
 static void test_region_labeling(void) {
-  gint32 *labeled = rd_label_image_regions(test_rl_image, 16, 16);
-  g_assert_cmpmem(labeled, 256*sizeof(gint32), test_rl_regions, 256*sizeof(gint32));
-  free(labeled);
+  RDMatrix *labeled = rd_label_image_regions(rd_image_new(test_rl_image, 16, 16));
+  g_assert_cmpmem(labeled->data, 256*sizeof(gint32), test_rl_regions, 256*sizeof(gint32));
+  rd_matrix_free(labeled);
 }

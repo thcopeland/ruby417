@@ -22,7 +22,7 @@ static guint8 test_ce_image_simple[] = {
 
 void test_contour_extraction(void)
 {
-  GList *regions = rd_extract_region_contours(test_ce_image, 6, 8);
+  GList *regions = rd_extract_region_contours(rd_image_new(test_ce_image, 6, 8));
   g_assert_cmpint(g_list_length(regions), ==, 2);
   g_assert_cmpint(((RDRegion*) g_list_nth_data(regions, 0))->area, ==, 20);
   g_assert_cmpint(((RDRegion*) g_list_nth_data(regions, 1))->area, ==, 28);
@@ -31,7 +31,7 @@ void test_contour_extraction(void)
 
 void test_contour_points(void)
 {
-  GList *regions = rd_extract_region_contours(test_ce_image_simple, 3, 3);
+  GList *regions = rd_extract_region_contours(rd_image_new(test_ce_image_simple, 3, 3));
   RDRegion *region = g_list_nth_data(regions, 0);
 
   g_assert_cmpint(g_list_length(regions), ==, 1);
