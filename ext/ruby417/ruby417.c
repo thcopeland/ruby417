@@ -61,6 +61,9 @@ static GArray* rd_simplify_polyline(GArray*, gint16);
 static void rd_simplify_polyline_recurse(GArray*, GArray*, gint16, gint16, gint16);
 static gint16 rd_distance_to_line_sq(RDPoint*, RDPoint*, RDPoint*);
 
+static GArray* rd_convex_hull(GArray*);
+static gboolean rd_hull_clockwise_turn(RDPoint*, RDPoint*, RDPoint*);
+
 static void uf_union(GArray* acc, gint32 a, gint32 b)
 {
   for (gint32 z = acc->len; z <= MAX(a, b); z++) {
@@ -308,4 +311,32 @@ static gint16 rd_distance_to_line_sq(RDPoint* p1, RDPoint* p2, RDPoint* q)
 {
   return pow((p2->y - p1->y)*q->x - (p2->x - p1->x)*q->y + p2->x*p1->y - p2->y*p1->x, 2) /
           (pow(p2->y - p1->y, 2) + pow(p2->x - p1->x, 2));
+}
+
+/* very specific implementation */
+static GArray* rd_convex_hull(GArray* contour)
+{
+  if(contour->len < 3) return NULL;
+
+  GArray* hull = g_array_new(FALSE, FALSE, sizeof(RDPoint));
+  g_array_append_val(hull, g_array_index(contour, RDPoint, 0));
+
+  gint32 p = 1;
+
+  while (p < contour->len) {
+    if (hull->len == 1
+        || rd_hull_clockwise_turn(&g_array_index(hull, RDPoint, hull->len-2),
+                                  &g_array_index(hull, RDPoint, hull->len-1),
+                                  &g_array_index(contour, RDPoint, p)))
+      g_array_append_val(hull, g_array_index(contour, RDPoint, p++));
+    else
+      g_array_remove_index(hull, hull->len-1);
+  }
+
+  return hull;
+}
+
+static gboolean rd_hull_clockwise_turn(RDPoint* p1, RDPoint* p2, RDPoint* p3)
+{
+  return (p2->x-p1->x)*(p3->y-p1->y) - (p2->y-p1->y)*(p3->x-p1->x) > 0;
 }

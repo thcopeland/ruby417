@@ -3,6 +3,7 @@
 #include "test_region_labeling.c"
 #include "test_contour_extraction.c"
 #include "test_contour_simplification.c"
+#include "test_convex_hull.c"
 
 int main(int argc, char *argv[])
 {
@@ -15,6 +16,8 @@ int main(int argc, char *argv[])
   g_test_add_func("/contour extraction/points", (GTestFunc) test_contour_points);
   g_test_add_func("/contour simplification/distance", (GTestFunc) test_line_distance);
   g_test_add_func("/contour simplification/polyline", (GTestFunc) test_polyline_simplification);
+  g_test_add_func("/convex hull/turn direction", (GTestFunc) test_clockwise_calculations);
+  g_test_add_func("/convex hull/polygon", (GTestFunc) test_convex_hull);
 
   return g_test_run();
 }
