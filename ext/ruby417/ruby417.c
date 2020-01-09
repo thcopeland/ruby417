@@ -1,6 +1,6 @@
 #include <stdlib.h> /* malloc, calloc */
-#include <glib.h>
-#include <math.h> /* pow */
+#include <glib.h> /* GArray functions, MAX */
+#include <math.h> /* sin, cos, atan, pow, sqrt, M_PI, M_PI_2 */
 
 typedef struct {
   gint16 width, height;
@@ -37,10 +37,15 @@ typedef struct {
 } RDPoint;
 
 typedef struct {
-  GArray* contour;
+  GArray* boundary;
   gint32 cx, cy;
   gint32 area;
 } RDRegion;
+
+typedef struct {
+  gint16 cx, cy, width, height;
+  double orientation;
+} RDRectangle;
 
 static void uf_union(GArray*, gint32, gint32);
 static gint32 uf_find(GArray*, gint32);
@@ -55,14 +60,16 @@ static RDRegion* rd_region_new(void);
 static void rd_region_free(RDRegion*);
 
 static GPtrArray* rd_extract_regions(RDImage*);
-static void rd_extract_contour(GArray*, RDMatrix*, gint16, gint16);
-
-static GArray* rd_simplify_polyline(GArray*, gint16);
-static void rd_simplify_polyline_recurse(GArray*, GArray*, gint16, gint16, gint16);
-static gint16 rd_distance_to_line_sq(RDPoint*, RDPoint*, RDPoint*);
 
 static GArray* rd_convex_hull(GArray*);
-static gboolean rd_hull_clockwise_turn(RDPoint*, RDPoint*, RDPoint*);
+static int rd_graham_cmp(RDPoint*, RDPoint*, RDPoint*);
+static gint32 rd_vector_dot(RDPoint*, RDPoint*, RDPoint*, RDPoint*);
+static gint32 rd_vector_cross(RDPoint*, RDPoint*, RDPoint*, RDPoint*);
+
+static RDRectangle* rd_fit_rectangle(GArray*);
+static RDPoint* rd_hull_wrap_index(GArray*, gint);
+static double rd_line_distance(RDPoint*, RDPoint*, double);
+static void rd_determine_fourth_point(RDPoint*, RDPoint*, RDPoint*, RDPoint*);
 
 static void uf_union(GArray* acc, gint32 a, gint32 b)
 {
@@ -121,7 +128,7 @@ static RDMatrix* rd_label_image_regions(RDImage* image)
 {
   RDMatrix* labels = rd_matrix_new(image->width, image->height);
   GArray* label_eqvs = g_array_sized_new(FALSE, FALSE, sizeof(gint32), 128);
-  if (!labels || !label_eqvs) goto abort;
+  if (!labels) goto abort;
 
   gint32 x, y, pixel_label, current_label = 1;
   for (y = 0; y < image->height; y++) {
@@ -175,7 +182,7 @@ static RDRegion* rd_region_new(void)
   RDRegion* region = malloc(sizeof(RDRegion));
 
   if (region) {
-    region->contour = g_array_new(FALSE, FALSE, sizeof(RDPoint));
+    region->boundary = g_array_new(FALSE, FALSE, sizeof(RDPoint));
     region->cx = 0;
     region->cy = 0;
     region->area = 0;
@@ -186,7 +193,7 @@ static RDRegion* rd_region_new(void)
 
 static void rd_region_free(RDRegion* region)
 {
-  g_array_free(region->contour, TRUE);
+  g_array_free(region->boundary, TRUE);
   free(region);
 }
 
@@ -198,19 +205,20 @@ static GPtrArray* rd_extract_regions(RDImage* image)
   if (!labels) goto abort;
 
   gint16 x, y;
+  gint32 label;
   gpointer lookup_key;
   RDRegion* region;
+  RDPoint point;
 
   for (y = 0; y < image->height; y++) {
     for (x = 0; x < image->width; x++) {
-      lookup_key = GINT_TO_POINTER(rd_matrix_read_fast(labels, x, y));
+      label = rd_matrix_read_fast(labels, x, y);
+      lookup_key = GINT_TO_POINTER(label);
       region = g_hash_table_lookup(region_lookup, lookup_key);
 
       if (!region) {
         region = rd_region_new();
         if (!region) goto abort;
-
-        rd_extract_contour(region->contour, labels, x, y);
 
         g_hash_table_insert(region_lookup, lookup_key, region);
         g_ptr_array_add(regions, region);
@@ -219,6 +227,18 @@ static GPtrArray* rd_extract_regions(RDImage* image)
       region->area++;
       region->cx += x;
       region->cy += y;
+
+      if (x == 0 || y == 0 || x == image->width-1 || y == image->height-1 ||
+          rd_matrix_read_fast(labels, x-1, y) != label ||
+          rd_matrix_read_fast(labels, x, y-1) != label ||
+          rd_matrix_read_fast(labels, x+1, y) != label ||
+          rd_matrix_read_fast(labels, x, y+1) != label)
+      {
+        point.x = x;
+        point.y = y;
+
+        g_array_append_val(region->boundary, point);
+      }
     }
   }
 
@@ -230,113 +250,149 @@ abort:
   return regions;
 }
 
-static void rd_extract_contour(GArray* contour, RDMatrix* labels, gint16 start_x, gint16 start_y)
+static GArray* rd_convex_hull(GArray* boundary)
 {
-  static const gint RIGHT = 0, DOWN = 1, LEFT = 2, UP = 3;
-
-  RDPoint point = {~start_x, ~start_y};
-  gint32 label, target_label = rd_matrix_read_fast(labels, start_x, start_y);
-  gint direction = RIGHT;
-  gint16 x = start_x, y = start_y;
-
-  do
-    {
-      label = rd_matrix_read_safe(labels, x, y, ~target_label);
-
-      if (label == target_label) {
-        if (x != point.x || y != point.y) {
-          point.x = x;
-          point.y = y;
-
-          g_array_append_val(contour, point);
-        }
-        direction = (direction - 1) & 3; /* left turn */
-      } else {
-         direction = (direction + 1) & 3; /* right turn */
-      }
-
-      if      (direction == RIGHT) x++;
-      else if (direction == DOWN)  y++;
-      else if (direction == LEFT)  x--;
-      else if (direction == UP)    y--;
-    }
-  while (x != start_x || y != start_y);
-}
-
-static GArray* rd_simplify_polyline(GArray* polyline, gint16 epsilon)
-{
-  GArray *simplified = g_array_new(FALSE, FALSE, sizeof(RDPoint));
-
-  if (polyline->len >= 2) {
-    g_array_append_val(simplified, g_array_index(polyline, RDPoint, 0));
-
-    rd_simplify_polyline_recurse(polyline, simplified, 0, polyline->len - 1, pow(epsilon, 2));
-
-    g_array_append_val(simplified, g_array_index(polyline, RDPoint, polyline->len - 1));
-  } else {
-    g_array_append_vals(simplified, polyline->data, polyline->len);
-  }
-
-  return simplified;
-}
-
-static void rd_simplify_polyline_recurse(GArray* polyline, GArray* simplified, gint16 start, gint16 end, gint16 epsilon_sq)
-{
-  if (end - start > 1) {
-    RDPoint* p1 = &g_array_index(polyline, RDPoint, start);
-    RDPoint* p2 = &g_array_index(polyline, RDPoint, end);
-    gint16 best_dist = 0, current_dist;
-    gint32 best_index = end, current_index = start;
-
-    while (++current_index < end) {
-      current_dist = rd_distance_to_line_sq(p1, p2, &g_array_index(polyline, RDPoint, current_index));
-
-      if(current_dist > best_dist) {
-        best_dist = current_dist;
-        best_index = current_index;
-      }
-    }
-
-    if (best_index < end && best_dist > epsilon_sq) {
-      rd_simplify_polyline_recurse(polyline, simplified, start, best_index, epsilon_sq);
-
-      g_array_append_val(simplified, g_array_index(polyline, RDPoint, best_index));
-
-      rd_simplify_polyline_recurse(polyline, simplified, best_index, end, epsilon_sq);
-    }
-  }
-}
-
-static gint16 rd_distance_to_line_sq(RDPoint* p1, RDPoint* p2, RDPoint* q)
-{
-  return pow((p2->y - p1->y)*q->x - (p2->x - p1->x)*q->y + p2->x*p1->y - p2->y*p1->x, 2) /
-          (pow(p2->y - p1->y, 2) + pow(p2->x - p1->x, 2));
-}
-
-/* very specific implementation */
-static GArray* rd_convex_hull(GArray* contour)
-{
-  if(contour->len < 3) return NULL;
+  if(boundary->len < 3) return NULL;
 
   GArray* hull = g_array_new(FALSE, FALSE, sizeof(RDPoint));
-  g_array_append_val(hull, g_array_index(contour, RDPoint, 0));
+  g_array_append_val(hull, g_array_index(boundary, RDPoint, 0));
+
+  g_array_sort_with_data(boundary, (GCompareDataFunc) rd_graham_cmp, &g_array_index(boundary, RDPoint, 0));
 
   gint32 p = 1;
 
-  while (p < contour->len) {
+  while (p <= boundary->len) {
     if (hull->len == 1
-        || rd_hull_clockwise_turn(&g_array_index(hull, RDPoint, hull->len-2),
-                                  &g_array_index(hull, RDPoint, hull->len-1),
-                                  &g_array_index(contour, RDPoint, p)))
-      g_array_append_val(hull, g_array_index(contour, RDPoint, p++));
-    else
+        || rd_vector_cross(&g_array_index(hull, RDPoint, hull->len-2),
+                         &g_array_index(hull, RDPoint, hull->len-1),
+                         &g_array_index(hull, RDPoint, hull->len-1),
+                         &g_array_index(boundary, RDPoint, p % boundary->len)) > 0) {
+      if(++p <= boundary->len) g_array_append_val(hull, g_array_index(boundary, RDPoint, p-1));
+    } else
       g_array_remove_index(hull, hull->len-1);
   }
 
   return hull;
 }
 
-static gboolean rd_hull_clockwise_turn(RDPoint* p1, RDPoint* p2, RDPoint* p3)
+static int rd_graham_cmp(RDPoint* p, RDPoint* q, RDPoint* base)
 {
-  return (p2->x-p1->x)*(p3->y-p1->y) - (p2->y-p1->y)*(p3->x-p1->x) > 0;
+  return (rd_vector_cross(p, base, p, q) > 0)*2 - 1;
+}
+
+static gint32 rd_vector_dot(RDPoint* a, RDPoint* b, RDPoint* c, RDPoint* d)
+{
+  return (b->x-a->x)*(d->x-c->x) + (b->y-a->y)*(d->y-c->y);
+}
+
+static gint32 rd_vector_cross(RDPoint* a, RDPoint* b, RDPoint* c, RDPoint* d)
+{
+  return (b->x-a->x)*(d->y-c->y) - (b->y-a->y)*(d->x-c->x);
+}
+
+static RDRectangle* rd_fit_rectangle(GArray* hull)
+{
+  RDRectangle* rectangle = malloc(sizeof(RDRectangle));
+
+  if (rectangle) {
+    double min_area = G_MAXDOUBLE, slope, width, height;
+    gint32 base_idx = 0, leftmost_idx = base_idx, altitude_idx = -1, rightmost_idx = -1;
+    RDPoint* left_base_point, *right_base_point;
+
+    while (base_idx < hull->len)
+    {
+      left_base_point  = rd_hull_wrap_index(hull, base_idx);
+      right_base_point = rd_hull_wrap_index(hull, base_idx+1);
+
+      while (rd_vector_dot(left_base_point,
+                           right_base_point,
+                           rd_hull_wrap_index(hull, leftmost_idx),
+                           rd_hull_wrap_index(hull, leftmost_idx+1)) > 0)
+      {
+        ++leftmost_idx;
+      }
+
+      if(altitude_idx == -1) altitude_idx = leftmost_idx;
+
+      while (rd_vector_cross(left_base_point,
+                             right_base_point,
+                             rd_hull_wrap_index(hull, altitude_idx),
+                             rd_hull_wrap_index(hull, altitude_idx+1)) > 0)
+      {
+        ++altitude_idx;
+      }
+
+      if(rightmost_idx == -1) rightmost_idx = altitude_idx;
+
+      while (rd_vector_dot(left_base_point,
+                           right_base_point,
+                           rd_hull_wrap_index(hull, rightmost_idx),
+                           rd_hull_wrap_index(hull, rightmost_idx+1)) < 0)
+      {
+        ++rightmost_idx;
+      }
+
+      if (left_base_point->x == right_base_point->x) {
+        width  = abs(rd_hull_wrap_index(hull, rightmost_idx)->y - rd_hull_wrap_index(hull, leftmost_idx)->y);
+        height = abs(rd_hull_wrap_index(hull, altitude_idx)->x - left_base_point->x);
+      } else if (left_base_point->y == right_base_point->y) {
+        width  = abs(rd_hull_wrap_index(hull, rightmost_idx)->x - rd_hull_wrap_index(hull, leftmost_idx)->x);
+        height = abs(rd_hull_wrap_index(hull, altitude_idx)->y - left_base_point->y);
+      } else {
+        slope = (double) (left_base_point->y - right_base_point->y) / (left_base_point->x - right_base_point->x);
+        width = rd_line_distance(rd_hull_wrap_index(hull, leftmost_idx), rd_hull_wrap_index(hull, rightmost_idx), -1/slope);
+        height = rd_line_distance(left_base_point, rd_hull_wrap_index(hull, altitude_idx), slope);
+      }
+
+      if (width*height < min_area) {
+        RDPoint upper_left, upper_right;
+        gint16 dx = right_base_point->x - left_base_point->x,
+               dy = right_base_point->y - left_base_point->y;
+
+        if (dx == 0) rectangle->orientation = M_PI_2;
+        else         rectangle->orientation = atan((double) dy/dx);
+
+        if (dx < 0 || (dx == 0 && dy < 0)) rectangle->orientation += M_PI;
+
+        rd_determine_fourth_point(left_base_point, right_base_point, rd_hull_wrap_index(hull, leftmost_idx), &upper_left);
+        rd_determine_fourth_point(left_base_point, right_base_point, rd_hull_wrap_index(hull, rightmost_idx), &upper_right);
+        rectangle->cx = (gint16) (upper_left.x + upper_right.x - sin(rectangle->orientation)*height) / 2;
+        rectangle->cy = (gint16) (upper_left.y + upper_right.y + cos(rectangle->orientation)*height) / 2;
+
+        rectangle->width = (gint16) width;
+        rectangle->height = (gint16) height;
+
+        min_area = width*height;
+      }
+
+      base_idx++;
+    }
+  }
+
+  return rectangle;
+}
+
+static RDPoint* rd_hull_wrap_index(GArray* hull, gint index)
+{
+  return &g_array_index(hull, RDPoint, index % hull->len);
+}
+
+static double rd_line_distance(RDPoint* p, RDPoint* q, double slope)
+{
+  // https://en.wikipedia.org/wiki/Distance_between_two_straight_lines
+  return abs((p->y - slope*p->x) - (q->y - slope*q->x)) / sqrt(pow(slope, 2) + 1);
+}
+
+static void rd_determine_fourth_point(RDPoint* p1, RDPoint* p2, RDPoint* q1, RDPoint* q2)
+{
+  if (p1->x == p2->x) {
+    q2->x = p1->x;
+    q2->y = q1->y;
+  } else {
+    double slope = (double) (p2->y - p1->y) / (p2->x - p1->x);
+    double x = (double) (slope*(q1->y-p1->y) + q1->x + p1->x*pow(slope, 2)) / (pow(slope, 2) + 1);
+
+    q2->x = (gint16) x;
+    q2->y = (gint16) (slope*(x - p1->x)) + p1->y;
+  }
 }
