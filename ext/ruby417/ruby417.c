@@ -242,6 +242,12 @@ static GPtrArray* rd_extract_regions(RDImage* image)
     }
   }
 
+  for(int i = 0; i < regions->len; i++) {
+    region = g_ptr_array_index(regions, i);
+    region->cx /= region->area;
+    region->cy /= region->area;
+  }
+
 abort:
 
   rd_matrix_free(labels);
@@ -365,7 +371,7 @@ static RDRectangle* rd_fit_rectangle(GArray* hull)
         min_area = width*height;
       }
 
-      base_idx++;
+      ++base_idx;
     }
   }
 
