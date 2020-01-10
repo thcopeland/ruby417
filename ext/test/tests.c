@@ -14,6 +14,7 @@ int main(int argc, char* argv[])
   g_test_add_func("/labeling/image", (GTestFunc) test_region_labeling);
   g_test_add_func("/labeling/alloc", (GTestFunc) test_region_labeling_allocation);
   g_test_add_func("/regions", (GTestFunc) test_region_extraction);
+  g_test_add_func("/regions/threshold", (GTestFunc) test_region_color_threshold);
   g_test_add_func("/convex_hull", (GTestFunc) test_convex_hull);
   g_test_add_func("/rectangles", (GTestFunc) test_rectangle_fitting);
 

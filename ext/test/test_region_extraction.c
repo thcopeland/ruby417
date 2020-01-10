@@ -1,7 +1,7 @@
 static void test_region_extraction(void)
 {
   RDImage* image = load_image_fixture("320x320_solitary_circle.raw");
-  GPtrArray* regions = rd_extract_regions(image);
+  GPtrArray* regions = rd_extract_regions(image, 0);
 
   g_assert_nonnull(regions);
   g_assert_cmpint(regions->len, ==, 2);
@@ -28,4 +28,23 @@ static void test_region_extraction(void)
 
   rd_matrix_free(image);
   g_ptr_array_free(regions, TRUE);
+}
+
+static void test_region_color_threshold(void)
+{
+  RDImage* image = load_image_fixture("320x320_solitary_circle.raw");
+
+  GPtrArray* regions = rd_extract_regions(image, 0);
+  g_assert_cmpint(regions->len, ==, 2);
+  g_ptr_array_free(regions, TRUE);
+
+  regions = rd_extract_regions(image, 15);
+  g_assert_cmpint(regions->len, ==, 1);
+  g_ptr_array_free(regions, TRUE);
+
+  regions = rd_extract_regions(image, 255);
+  g_assert_cmpint(regions->len, ==, 1);
+  g_ptr_array_free(regions, TRUE);
+
+  rd_matrix_free(image);
 }

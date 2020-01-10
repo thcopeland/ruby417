@@ -59,7 +59,7 @@ static gint32 rd_determine_label(RDImage*, RDMatrix*, GArray*, gint16, gint16);
 static RDRegion* rd_region_new(void);
 static void rd_region_free(RDRegion*);
 
-static GPtrArray* rd_extract_regions(RDImage*);
+static GPtrArray* rd_extract_regions(RDImage*, guint8);
 
 static GArray* rd_convex_hull(GArray*);
 static int rd_graham_cmp(RDPoint*, RDPoint*, RDPoint*);
@@ -197,7 +197,7 @@ static void rd_region_free(RDRegion* region)
   free(region);
 }
 
-static GPtrArray* rd_extract_regions(RDImage* image)
+static GPtrArray* rd_extract_regions(RDImage* image, guint8 color_threshold)
 {
   GPtrArray* regions = g_ptr_array_new_with_free_func((GDestroyNotify) rd_region_free);
   GHashTable* region_lookup = g_hash_table_new(g_direct_hash, g_direct_equal);
@@ -212,32 +212,34 @@ static GPtrArray* rd_extract_regions(RDImage* image)
 
   for (y = 0; y < image->height; y++) {
     for (x = 0; x < image->width; x++) {
-      label = rd_matrix_read_fast(labels, x, y);
-      lookup_key = GINT_TO_POINTER(label);
-      region = g_hash_table_lookup(region_lookup, lookup_key);
+      if (rd_matrix_read_fast(image, x, y) >= color_threshold) {
+        label = rd_matrix_read_fast(labels, x, y);
+        lookup_key = GINT_TO_POINTER(label);
+        region = g_hash_table_lookup(region_lookup, lookup_key);
 
-      if (!region) {
-        region = rd_region_new();
-        if (!region) goto abort;
+        if (!region) {
+          region = rd_region_new();
+          if (!region) goto abort;
 
-        g_hash_table_insert(region_lookup, lookup_key, region);
-        g_ptr_array_add(regions, region);
-      }
+          g_hash_table_insert(region_lookup, lookup_key, region);
+          g_ptr_array_add(regions, region);
+        }
 
-      region->area++;
-      region->cx += x;
-      region->cy += y;
+        region->area++;
+        region->cx += x;
+        region->cy += y;
 
-      if (x == 0 || y == 0 || x == image->width-1 || y == image->height-1 ||
-          rd_matrix_read_fast(labels, x-1, y) != label ||
-          rd_matrix_read_fast(labels, x, y-1) != label ||
-          rd_matrix_read_fast(labels, x+1, y) != label ||
-          rd_matrix_read_fast(labels, x, y+1) != label)
-      {
-        point.x = x;
-        point.y = y;
+        if (x == 0 || y == 0 || x == image->width-1 || y == image->height-1 ||
+            rd_matrix_read_fast(labels, x-1, y) != label ||
+            rd_matrix_read_fast(labels, x, y-1) != label ||
+            rd_matrix_read_fast(labels, x+1, y) != label ||
+            rd_matrix_read_fast(labels, x, y+1) != label)
+        {
+          point.x = x;
+          point.y = y;
 
-        g_array_append_val(region->boundary, point);
+          g_array_append_val(region->boundary, point);
+        }
       }
     }
   }

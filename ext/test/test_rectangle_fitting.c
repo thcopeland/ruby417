@@ -10,7 +10,7 @@ static void assert_rectangle(RDRectangle* rect, int x, int y, int w, int h, doub
 static void test_rectangle_fitting(void)
 {
   RDImage* image = load_image_fixture("256x256_assorted_polygons.raw");
-  GPtrArray* regions = rd_extract_regions(image);
+  GPtrArray* regions = rd_extract_regions(image, 0);
 
   g_assert_cmpint(regions->len, ==, 4);
 
