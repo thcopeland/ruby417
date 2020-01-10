@@ -270,9 +270,9 @@ static GArray* rd_convex_hull(GArray* boundary)
   while (p <= boundary->len) {
     if (hull->len == 1
         || rd_vector_cross(&g_array_index(hull, RDPoint, hull->len-2),
-                         &g_array_index(hull, RDPoint, hull->len-1),
-                         &g_array_index(hull, RDPoint, hull->len-1),
-                         &g_array_index(boundary, RDPoint, p % boundary->len)) > 0) {
+                           &g_array_index(hull, RDPoint, hull->len-1),
+                           &g_array_index(hull, RDPoint, hull->len-1),
+                           &g_array_index(boundary, RDPoint, p % boundary->len)) > 0) {
       if(++p <= boundary->len) g_array_append_val(hull, g_array_index(boundary, RDPoint, p-1));
     } else
       g_array_remove_index(hull, hull->len-1);
@@ -283,7 +283,7 @@ static GArray* rd_convex_hull(GArray* boundary)
 
 static int rd_graham_cmp(RDPoint* p, RDPoint* q, RDPoint* base)
 {
-  return (rd_vector_cross(p, base, p, q) > 0)*2 - 1;
+  return -rd_vector_cross(base, p, base, q);
 }
 
 static gint32 rd_vector_dot(RDPoint* a, RDPoint* b, RDPoint* c, RDPoint* d)
