@@ -1,32 +1,42 @@
-void assert_point_xy(RDPoint* p, gint px, gint py);
-
-void test_clockwise_calculations(void)
+static void test_convex_hull(void)
 {
-  RDPoint p1 = {.x = 14, .y = 16};
-  RDPoint p2 = {.x = 18, .y = 25};
-  RDPoint p3 = {.x = 30, .y = 12};
-  RDPoint p4 = {.x = 22, .y = 34};
+  RDImage* image = load_image_fixture("256x256_convex_hull_M.raw");
+  GPtrArray* regions = rd_extract_regions(image);
 
-  g_assert_false(rd_hull_clockwise_turn(&p1, &p2, &p3)); /* counter-clockwise */
-  g_assert_false(rd_hull_clockwise_turn(&p1, &p2, &p4)); /* collinear */
-  g_assert_true(rd_hull_clockwise_turn(&p3, &p2, &p1));  /* clockwise */
-}
+  g_assert_nonnull(regions);
+  g_assert_cmpint(regions->len, ==, 2);
 
-void test_convex_hull(void)
-{
-  GArray* polygon = g_array_new(FALSE, FALSE, sizeof(RDPoint));
-  RDPoint points[] = {{0,0}, {2,1}, {5,1}, {6,2}, {7,3}, {3,5}, {2,3}, {0,4}};
-  g_array_append_vals(polygon, points, 8);
+  RDRegion* r1 = g_ptr_array_index(regions, 0),
+          * r2 = g_ptr_array_index(regions, 1);
 
-  GArray* hull = rd_convex_hull(polygon);
+  GArray* hull1 = rd_convex_hull(r1->boundary),
+        * hull2 = rd_convex_hull(r2->boundary);
 
-  g_assert_cmpint(hull->len, ==, 5);
-  assert_point_xy(&g_array_index(hull, RDPoint, 0), 0, 0);
-  assert_point_xy(&g_array_index(hull, RDPoint, 1), 5, 1);
-  assert_point_xy(&g_array_index(hull, RDPoint, 2), 7, 3);
-  assert_point_xy(&g_array_index(hull, RDPoint, 3), 3, 5);
-  assert_point_xy(&g_array_index(hull, RDPoint, 4), 0, 4);
+  g_assert_cmpint(hull1->len, ==, 4);
+  assert_point_xy(&g_array_index(hull1, RDPoint, 0), 0, 0);
+  assert_point_xy(&g_array_index(hull1, RDPoint, 1), 255, 0);
+  assert_point_xy(&g_array_index(hull1, RDPoint, 2), 255, 255);
+  assert_point_xy(&g_array_index(hull1, RDPoint, 3), 0, 255);
 
-  g_array_free(hull, TRUE);
-  g_array_free(polygon, TRUE);
+  g_assert_cmpint(hull2->len, ==, 5);
+  assert_point_xy(&g_array_index(hull2, RDPoint, 0), 15, 20);
+  assert_point_xy(&g_array_index(hull2, RDPoint, 1), 216, 20);
+  assert_point_xy(&g_array_index(hull2, RDPoint, 2), 245, 128);
+  assert_point_xy(&g_array_index(hull2, RDPoint, 3), 216, 236);
+  assert_point_xy(&g_array_index(hull2, RDPoint, 4), 15, 236);
+
+  g_array_free(hull1, TRUE);
+  g_array_free(hull2, TRUE);
+  g_ptr_array_free(regions, TRUE);
+  rd_matrix_free(image);
+
+  GArray* too_small = g_array_new(FALSE, FALSE, sizeof(RDPoint));
+
+  RDPoint p = {1, 2}, q = {5, 2};
+  g_array_append_val(too_small, p);
+  g_array_append_val(too_small, q);
+
+  g_assert_null(rd_convex_hull(too_small));
+
+  g_array_free(too_small, TRUE);
 }

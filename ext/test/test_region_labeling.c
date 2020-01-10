@@ -1,45 +1,24 @@
-static guint8 test_rl_image[] = {
-  0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
-  0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
-  0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0,
-  0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0,
-  0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, 0,
-  0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0,
-  0, 1, 0, 1, 0, 1, 0, 1, 2, 0, 1, 0, 1, 0, 1, 0,
-  0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0,
-  0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0,
-  0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0,
-  0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0,
-  0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0,
-  0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
-  0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-};
-
-static gint32 test_rl_regions[] = {
-  3, 8, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-  3, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 3,
-  3, 8, 9, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8, 3,
-  3, 8, 9, 8, 9, 8, 8, 8, 8, 8, 8, 8, 8, 9, 8, 3,
-  3, 8, 9, 8, 9, 8, 9, 9, 9, 9, 9, 9, 8, 9, 8, 3,
-  3, 8, 9, 8, 9, 8, 9, 8, 8, 8, 8, 9, 8, 9, 8, 3,
-  3, 8, 9, 8, 9, 8, 9, 8, 9, 9, 8, 9, 8, 9, 8, 3,
-  3, 8, 9, 8, 9, 8, 9, 8,10, 9, 8, 9, 8, 9, 8, 3,
-  3, 8, 9, 8, 9, 8, 9, 8, 8, 9, 8, 9, 8, 9, 8, 3,
-  3, 8, 9, 8, 9, 8, 9, 9, 9, 9, 8, 9, 8, 9, 8, 3,
-  3, 8, 9, 8, 9, 8, 8, 8, 8, 8, 8, 9, 8, 9, 8, 3,
-  3, 8, 9, 8, 9, 9, 9, 9, 9, 9, 9, 9, 8, 9, 8, 3,
-  3, 8, 9, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 9, 8, 3,
-  3, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8, 3,
-  3, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 3,
-  3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3
-};
-
 static void test_region_labeling(void) {
-  RDImage *image = rd_image_new(test_rl_image, 16, 16);
+  RDImage *image = load_image_fixture("16x16_region_labeling_spiral.raw");
+  RDMatrix *regions = load_matrix_fixture("16x16_region_labeling_spiral_labeled");
+
   RDMatrix *labeled = rd_label_image_regions(image);
-  g_assert_cmpmem(labeled->data, 256*sizeof(gint32), test_rl_regions, 256*sizeof(gint32));
+
+  assert_matrix_eq(regions, labeled);
+
   rd_matrix_free(labeled);
-  free(image);
+  rd_matrix_free(regions);
+  rd_matrix_free(image);
+}
+
+static void test_region_labeling_allocation(void)
+{
+  RDImage *image = load_image_fixture("16x16_region_labeling_spiral.raw");
+
+  fail_nth_allocation = 1;
+  RDMatrix *labeled = rd_label_image_regions(image);
+
+  g_assert_null(labeled);
+
+  rd_matrix_free(image);
 }
