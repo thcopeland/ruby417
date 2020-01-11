@@ -7,7 +7,7 @@ static int fail_nth_allocation = -1;
 
 #define malloc(size) (fail_nth_allocation < 0 || (--fail_nth_allocation) ? malloc(size) : (fail_nth_allocation = -1, NULL))
 
-#include "../ruby417/ruby417.c"
+#include "../ruby417/rectangles/rectangles.c"
 
 #define FIXTURES_DIR "fixtures"
 

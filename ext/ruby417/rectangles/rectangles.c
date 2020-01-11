@@ -1,75 +1,6 @@
 #include <stdlib.h> /* malloc, calloc */
-#include <glib.h> /* GArray functions, MAX */
 #include <math.h> /* sin, cos, atan, pow, sqrt, M_PI, M_PI_2 */
-
-typedef struct {
-  gint16 width, height;
-  guint8* data;
-} RDImage;
-
-typedef struct {
-  gint16 width, height;
-  gint32* data;
-} RDMatrix;
-
-#define rd_matrix_read_fast(m, x, y) (m)->data[(x) + (y)*(m)->width]
-
-#define rd_matrix_read_safe(m, x, y, fallback)                                  \
-  (((x) >= 0 && (y) >= 0 && (x) < (m)->width && (y) < (m)->height) ?            \
-      rd_matrix_read_fast(m, x, y)                                              \
-    :                                                                           \
-      (fallback))
-
-#define rd_matrix_set(m, x, y, val) do {                                        \
-  if ((x) >= 0 && (y) >= 0 && (x) < (m)->width && (y) < (m)->height)            \
-    (m)->data[(x)+(y)*(m)->width] = (val);                                      \
-  } while(0)
-
-#define rd_matrix_free(m) do {                                                  \
-  if(m) {                                                                       \
-    free(m->data);                                                              \
-    free(m);                                                                    \
-  }                                                                             \
-} while(0)
-
-typedef struct {
-  gint16 x, y;
-} RDPoint;
-
-typedef struct {
-  GArray* boundary;
-  gint32 cx, cy;
-  gint32 area;
-} RDRegion;
-
-typedef struct {
-  gint16 cx, cy, width, height;
-  double orientation;
-} RDRectangle;
-
-static void uf_union(GArray*, gint32, gint32);
-static gint32 uf_find(GArray*, gint32);
-
-static RDMatrix* rd_matrix_new(gint16, gint16);
-static RDImage* rd_image_new(guint8*, gint16, gint16);
-
-static RDMatrix* rd_label_image_regions(RDImage*);
-static gint32 rd_determine_label(RDImage*, RDMatrix*, GArray*, gint16, gint16);
-
-static RDRegion* rd_region_new(void);
-static void rd_region_free(RDRegion*);
-
-static GPtrArray* rd_extract_regions(RDImage*, guint8);
-
-static GArray* rd_convex_hull(GArray*);
-static int rd_graham_cmp(RDPoint*, RDPoint*, RDPoint*);
-static gint32 rd_vector_dot(RDPoint*, RDPoint*, RDPoint*, RDPoint*);
-static gint32 rd_vector_cross(RDPoint*, RDPoint*, RDPoint*, RDPoint*);
-
-static RDRectangle* rd_fit_rectangle(GArray*);
-static RDPoint* rd_hull_wrap_index(GArray*, gint);
-static double rd_line_distance(RDPoint*, RDPoint*, double);
-static void rd_determine_fourth_point(RDPoint*, RDPoint*, RDPoint*, RDPoint*);
+#include "rectangles.h"
 
 static void uf_union(GArray* acc, gint32 a, gint32 b)
 {
@@ -197,7 +128,7 @@ static void rd_region_free(RDRegion* region)
   free(region);
 }
 
-static GPtrArray* rd_extract_regions(RDImage* image, guint8 color_threshold)
+static GPtrArray* rd_extract_regions(RDImage* image, guint8 intensity_threshold)
 {
   GPtrArray* regions = g_ptr_array_new_with_free_func((GDestroyNotify) rd_region_free);
   GHashTable* region_lookup = g_hash_table_new(g_direct_hash, g_direct_equal);
@@ -212,7 +143,7 @@ static GPtrArray* rd_extract_regions(RDImage* image, guint8 color_threshold)
 
   for (y = 0; y < image->height; y++) {
     for (x = 0; x < image->width; x++) {
-      if (rd_matrix_read_fast(image, x, y) >= color_threshold) {
+      if (rd_matrix_read_fast(image, x, y) >= intensity_threshold) {
         label = rd_matrix_read_fast(labels, x, y);
         lookup_key = GINT_TO_POINTER(label);
         region = g_hash_table_lookup(region_lookup, lookup_key);
@@ -404,3 +335,104 @@ static void rd_determine_fourth_point(RDPoint* p1, RDPoint* p2, RDPoint* q1, RDP
     q2->y = (gint16) (slope*(x - p1->x)) + p1->y;
   }
 }
+
+#ifndef NO_RUBY
+
+static VALUE mRuby417,
+             mRectangleDetection,
+             cRectangle;
+
+static VALUE detect_rectangles_wrapper(VALUE self, VALUE data, VALUE width, VALUE height, VALUE area_threshold, VALUE intensity_threshold)
+{
+  Check_Type(data, T_STRING);
+  Check_Type(width, T_FIXNUM);
+  Check_Type(height, T_FIXNUM);
+  Check_Type(area_threshold, T_FIXNUM);
+  Check_Type(intensity_threshold, T_FIXNUM);
+
+  gint16 c_width  = FIX2INT(width),
+         c_height = FIX2INT(height);
+
+  if (RSTRING_LEN(data) != c_width*c_height) {
+    rb_raise(rb_eEOFError, "image data and dimensions (%ix%i) do not align", c_width, c_height);
+  }
+
+  return detect_rectangles((unsigned char*) StringValuePtr(data), c_width, c_height, FIX2INT(area_threshold), (guint8) FIX2INT(area_threshold));
+}
+
+static VALUE detect_rectangles(guint8* data, gint16 width, gint16 height, gint32 area_threshold, guint8 intensity_threshold)
+{
+  VALUE rect_data = rb_ary_new();
+  RDImage* image = NULL;
+  GPtrArray* regions = NULL;
+
+  image = rd_image_new(data, width, height);
+  if(!image) goto nomem;
+
+  regions = rd_extract_regions(image, intensity_threshold);
+  if(!regions) goto nomem;
+
+  for (int r = 0; r < regions->len; r++) {
+    RDRegion* region = g_ptr_array_index(regions, r);
+
+    if (region->area >= area_threshold && region->boundary->len >= 3) {
+      GArray* hull = rd_convex_hull(region->boundary);
+      if(!hull) goto nomem;
+
+      RDRectangle* rect = rd_fit_rectangle(hull);
+      if(!rect) {
+        g_array_free(hull, TRUE);
+        goto nomem;
+      }
+
+      VALUE rect_args[6] = { INT2FIX(rect->cx),    INT2FIX(rect->cy),
+                             INT2FIX(rect->width), INT2FIX(rect->height),
+                             rb_float_new(rect->orientation), INT2FIX(region->area)};
+      VALUE rb_rect = rb_class_new_instance(6, rect_args, cRectangle);
+
+      rb_ary_push(rect_data, rb_rect);
+
+      g_array_free(hull, TRUE);
+      free(rect);
+    }
+  }
+
+  return rect_data;
+
+nomem:
+  free(image);
+  g_ptr_array_free(regions, TRUE);
+  rb_raise(rb_eNoMemError, "unable to allocate sufficient memory");
+}
+
+static VALUE Rectangle_initialize(VALUE self, VALUE cx, VALUE cy, VALUE width, VALUE height, VALUE orientation, VALUE area)
+{
+  rb_iv_set(self, "@cx", cx);
+  rb_iv_set(self, "@cy", cy);
+  rb_iv_set(self, "@width", width);
+  rb_iv_set(self, "@height", height);
+  rb_iv_set(self, "@orientation", orientation);
+
+  rb_iv_set(self, "@region_area", area);
+
+  return self;
+}
+
+void Init_rectangle_detection(void)
+{
+  mRuby417 = rb_define_module("Ruby417");
+  mRectangleDetection = rb_define_module_under(mRuby417, "RectangleDetection");
+  cRectangle = rb_define_class_under(mRectangleDetection, "Rectangle", rb_cObject);
+
+  rb_define_module_function(mRectangleDetection, "process_image_data", detect_rectangles_wrapper, 5);
+
+  rb_define_method(cRectangle, "initialize", Rectangle_initialize, 6);
+  rb_define_attr(cRectangle, "cx", 1, 0);
+  rb_define_attr(cRectangle, "cy", 1, 0);
+  rb_define_attr(cRectangle, "width", 1, 0);
+  rb_define_attr(cRectangle, "height", 1, 0);
+  rb_define_attr(cRectangle, "orientation", 1, 0);
+  rb_define_attr(cRectangle, "region_area", 1, 0);
+}
+
+#endif
