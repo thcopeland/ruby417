@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <glib.h>
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
@@ -7,7 +8,7 @@ static int fail_nth_allocation = -1;
 
 #define malloc(size) (fail_nth_allocation < 0 || (--fail_nth_allocation) ? malloc(size) : (fail_nth_allocation = -1, NULL))
 
-#include "../ruby417/rectangles/rectangles.c"
+#include EXT_INCLUDE_DIR
 
 #define FIXTURES_DIR "fixtures"
 

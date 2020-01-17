@@ -52,10 +52,10 @@ RDMatrix* load_matrix_fixture(char* filename)
 
   mtx->width = width;
   mtx->height = height;
-  mtx->data = malloc(width*height*sizeof(gint32));
+  mtx->data = malloc(width*height*sizeof(int32_t));
 
   for(int i = 0; i < width*height; i++)
-    mtx->data[i] = (gint32) data[i];
+    mtx->data[i] = (int32_t) data[i];
 
   free(data);
 

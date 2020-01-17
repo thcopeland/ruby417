@@ -1,13 +1,15 @@
-#include <glib.h> /* GArray functions, MAX */
+// #include <glib.h> /* GArray functions, MAX */
+#include <stdint.h>
+#include "../darray/darray.h"
 
 typedef struct {
-  gint16 width, height;
-  guint8* data;
+  int16_t width, height;
+  uint8_t* data;
 } RDImage;
 
 typedef struct {
-  gint16 width, height;
-  gint32* data;
+  int16_t width, height;
+  int32_t* data;
 } RDMatrix;
 
 #define rd_matrix_read_fast(m, x, y) (m)->data[(x) + (y)*(m)->width]
@@ -31,41 +33,44 @@ typedef struct {
 } while(0)
 
 typedef struct {
-  gint16 x, y;
+  int16_t x, y;
 } RDPoint;
 
 typedef struct {
-  GArray* boundary;
-  gint32 cx, cy;
-  gint32 area;
+  DArray* boundary;
+  int32_t cx, cy;
+  int32_t area;
 } RDRegion;
 
 typedef struct {
-  gint16 cx, cy, width, height;
+  int16_t cx, cy, width, height;
   double orientation;
 } RDRectangle;
 
-static void uf_union(GArray*, gint32, gint32);
-static gint32 uf_find(GArray*, gint32);
+#define INT2PTR(int) ((void*) (long) (int))
+#define PTR2INT(ptr) ((long) (ptr))
 
-static RDMatrix* rd_matrix_new(gint16, gint16);
-static RDImage* rd_image_new(guint8*, gint16, gint16);
+static void uf_union(DArray*, int32_t, int32_t);
+static int32_t uf_find(DArray*, int32_t);
+
+static RDMatrix* rd_matrix_new(int16_t, int16_t);
+static RDImage* rd_image_new(uint8_t*, int16_t, int16_t);
 
 static RDMatrix* rd_label_image_regions(RDImage*);
-static gint32 rd_determine_label(RDImage*, RDMatrix*, GArray*, gint16, gint16);
+static int32_t rd_determine_label(RDImage*, RDMatrix*, DArray*, int16_t, int16_t);
 
 static RDRegion* rd_region_new(void);
 static void rd_region_free(RDRegion*);
 
-static GPtrArray* rd_extract_regions(RDImage*, guint8);
+static DArray* rd_extract_regions(RDImage*, uint8_t);
 
-static GArray* rd_convex_hull(GArray*);
+static DArray* rd_convex_hull(DArray*);
 static int rd_graham_cmp(RDPoint*, RDPoint*, RDPoint*);
-static gint32 rd_vector_dot(RDPoint*, RDPoint*, RDPoint*, RDPoint*);
-static gint32 rd_vector_cross(RDPoint*, RDPoint*, RDPoint*, RDPoint*);
+static int32_t rd_vector_dot(RDPoint*, RDPoint*, RDPoint*, RDPoint*);
+static int32_t rd_vector_cross(RDPoint*, RDPoint*, RDPoint*, RDPoint*);
 
-static RDRectangle* rd_fit_rectangle(GArray*);
-static RDPoint* rd_hull_wrap_index(GArray*, gint);
+static RDRectangle* rd_fit_rectangle(DArray*);
+static RDPoint* rd_hull_wrap_index(DArray*, int32_t);
 static double rd_line_distance(RDPoint*, RDPoint*, double);
 static void rd_determine_fourth_point(RDPoint*, RDPoint*, RDPoint*, RDPoint*);
 
@@ -75,7 +80,7 @@ static void rd_determine_fourth_point(RDPoint*, RDPoint*, RDPoint*, RDPoint*);
 #include <ruby.h>
 
 static VALUE detect_rectangles_wrapper(VALUE, VALUE, VALUE, VALUE, VALUE, VALUE);
-static VALUE detect_rectangles(guint8*, gint16, gint16, gint32, guint8);
+static VALUE detect_rectangles(uint8_t*, uint16_t, uint16_t, uint32_t, uint8_t);
 void Init_rectangle_detection(void);
 
 #endif

@@ -2,29 +2,31 @@
 #include <math.h> /* sin, cos, atan, pow, sqrt, M_PI, M_PI_2 */
 #include "rectangles.h"
 
-static void uf_union(GArray* acc, gint32 a, gint32 b)
+static void uf_union(DArray* acc, int32_t a, int32_t b)
 {
-  for (gint32 z = acc->len; z <= MAX(a, b); z++) {
-    g_array_append_val(acc, z);
+  int32_t max = (a > b) ? a : b;
+
+  for (int32_t z = acc->len; z <= max; z++) {
+    if(!darray_push(acc, INT2PTR(z))) return;
   }
 
-  gint32* tmp = &g_array_index(acc, gint32, uf_find(acc, a));
-  *tmp = uf_find(acc, b);
+  darray_index_set(acc, uf_find(acc, a), INT2PTR(uf_find(acc, b)));
 }
 
-static gint32 uf_find(GArray* acc, gint32 site)
+static int32_t uf_find(DArray* acc, int32_t site)
 {
   if (site < 0 || site >= acc->len) {
     return -1;
-  } else if (g_array_index(acc, gint32, site) == site) {
+  } else if (darray_index(acc, site) == INT2PTR(site)) {
     return site;
   } else {
-    gint32* tmp = &g_array_index(acc, gint32, site);
-    return (*tmp = uf_find(acc, *tmp));
+    return PTR2INT(darray_index_set(acc, site,
+            INT2PTR(uf_find(acc, PTR2INT(darray_index(acc, site))))
+           ));
   }
 }
 
-static RDMatrix* rd_matrix_new(gint16 width, gint16 height)
+static RDMatrix* rd_matrix_new(int16_t width, int16_t height)
 {
   RDMatrix* m = malloc(sizeof(RDMatrix));
 
@@ -42,7 +44,7 @@ static RDMatrix* rd_matrix_new(gint16 width, gint16 height)
   return m;
 }
 
-static RDImage* rd_image_new(guint8* data, gint16 width, gint16 height)
+static RDImage* rd_image_new(uint8_t* data, int16_t width, int16_t height)
 {
   RDImage* i = malloc(sizeof(RDImage));
 
@@ -58,10 +60,10 @@ static RDImage* rd_image_new(guint8* data, gint16 width, gint16 height)
 static RDMatrix* rd_label_image_regions(RDImage* image)
 {
   RDMatrix* labels = rd_matrix_new(image->width, image->height);
-  GArray* label_eqvs = g_array_sized_new(FALSE, FALSE, sizeof(gint32), 128);
-  if (!labels) goto abort;
+  DArray* label_eqvs = darray_new(128);
+  if (!labels || !label_eqvs) goto abort;
 
-  gint32 x, y, pixel_label, current_label = 1;
+  int32_t x, y, pixel_label, current_label = 1;
   for (y = 0; y < image->height; y++) {
     for (x = 0; x < image->width; x++) {
       pixel_label = rd_determine_label(image, labels, label_eqvs, x, y);
@@ -76,22 +78,26 @@ static RDMatrix* rd_label_image_regions(RDImage* image)
     }
   }
 
-  for (gint32 z = 0; z < image->width*image->height; z++) {
+  for (int32_t z = 0; z < image->width*image->height; z++) {
     labels->data[z] = uf_find(label_eqvs, labels->data[z]);
   }
 
-abort:
-  g_array_free(label_eqvs, TRUE);
-
+  darray_free(label_eqvs, NULL);
   return labels;
+
+abort:
+
+  darray_free(label_eqvs, NULL);
+  rd_matrix_free(labels);
+  return NULL;
 }
 
-static gint32 rd_determine_label(RDImage* image, RDMatrix* labels, GArray* eqvs, gint16 x, gint16 y)
+static int32_t rd_determine_label(RDImage* image, RDMatrix* labels, DArray* eqvs, int16_t x, int16_t y)
 {
   static const int offsets[2][2] = {{-1, 0}, {0, -1}}; /* 4-connectivity */
 
-  guint8 color = rd_matrix_read_fast(image, x, y);
-  gint32 nx, ny, neighbor_label, best_label = 0;
+  uint8_t color = rd_matrix_read_fast(image, x, y);
+  int32_t nx, ny, neighbor_label, best_label = 0;
 
   for (int i = 0; i < 2; i++) {
     nx = offsets[i][0] + x;
@@ -113,7 +119,7 @@ static RDRegion* rd_region_new(void)
   RDRegion* region = malloc(sizeof(RDRegion));
 
   if (region) {
-    region->boundary = g_array_new(FALSE, FALSE, sizeof(RDPoint));
+    region->boundary = darray_new(8);
     region->cx = 0;
     region->cy = 0;
     region->area = 0;
@@ -124,36 +130,37 @@ static RDRegion* rd_region_new(void)
 
 static void rd_region_free(RDRegion* region)
 {
-  g_array_free(region->boundary, TRUE);
+  darray_free(region->boundary, (DArrayFreeFunc) free);
   free(region);
 }
 
-static GPtrArray* rd_extract_regions(RDImage* image, guint8 intensity_threshold)
+static DArray* rd_extract_regions(RDImage* image, uint8_t intensity_threshold)
 {
-  GPtrArray* regions = g_ptr_array_new_with_free_func((GDestroyNotify) rd_region_free);
-  GHashTable* region_lookup = g_hash_table_new(g_direct_hash, g_direct_equal);
+  DArray* regions = darray_new(16);
   RDMatrix* labels = rd_label_image_regions(image);
   if (!labels) goto abort;
 
-  gint16 x, y;
-  gint32 label;
-  gpointer lookup_key;
+  uint16_t x, y;
+  uint32_t label;
   RDRegion* region;
-  RDPoint point;
 
   for (y = 0; y < image->height; y++) {
     for (x = 0; x < image->width; x++) {
       if (rd_matrix_read_fast(image, x, y) >= intensity_threshold) {
         label = rd_matrix_read_fast(labels, x, y);
-        lookup_key = GINT_TO_POINTER(label);
-        region = g_hash_table_lookup(region_lookup, lookup_key);
+        region = darray_index(regions, label);
 
         if (!region) {
-          region = rd_region_new();
-          if (!region) goto abort;
+          while(regions->len <= label)
+            darray_push(regions, NULL);
 
-          g_hash_table_insert(region_lookup, lookup_key, region);
-          g_ptr_array_add(regions, region);
+          region = rd_region_new();
+
+          if (regions->len > label && region) {
+            darray_index_set(regions, label, region);
+          } else {
+            goto abort;
+          }
         }
 
         region->area++;
@@ -166,49 +173,58 @@ static GPtrArray* rd_extract_regions(RDImage* image, guint8 intensity_threshold)
             rd_matrix_read_fast(labels, x+1, y) != label ||
             rd_matrix_read_fast(labels, x, y+1) != label)
         {
-          point.x = x;
-          point.y = y;
+          RDPoint* point = malloc(sizeof(RDPoint));
+          if (!point) goto abort;
 
-          g_array_append_val(region->boundary, point);
+          point->x = x;
+          point->y = y;
+
+          darray_push(region->boundary, point);
         }
       }
     }
   }
 
-  for(int i = 0; i < regions->len; i++) {
-    region = g_ptr_array_index(regions, i);
-    region->cx /= region->area;
-    region->cy /= region->area;
+  uint32_t i = 0;
+  while (i < regions->len) {
+    region = darray_index(regions, i);
+
+    if (region == NULL) {
+      darray_remove_fast(regions, i);
+    } else {
+      region->cx /= region->area;
+      region->cy /= region->area;
+      ++i;
+    }
   }
 
 abort:
 
   rd_matrix_free(labels);
-  g_hash_table_destroy(region_lookup);
 
   return regions;
 }
 
-static GArray* rd_convex_hull(GArray* boundary)
+static DArray* rd_convex_hull(DArray* boundary)
 {
   if(boundary->len < 3) return NULL;
 
-  GArray* hull = g_array_new(FALSE, FALSE, sizeof(RDPoint));
-  g_array_append_val(hull, g_array_index(boundary, RDPoint, 0));
+  DArray* hull = darray_new(3);
+  darray_push(hull, darray_index(boundary, 0));
 
-  g_array_sort_with_data(boundary, (GCompareDataFunc) rd_graham_cmp, &g_array_index(boundary, RDPoint, 0));
+  darray_msort(boundary, darray_index(boundary, 0), (DArrayCompareFunc) rd_graham_cmp);
 
-  gint32 p = 1;
+  uint32_t p = 1;
 
   while (p <= boundary->len) {
     if (hull->len == 1
-        || rd_vector_cross(&g_array_index(hull, RDPoint, hull->len-2),
-                           &g_array_index(hull, RDPoint, hull->len-1),
-                           &g_array_index(hull, RDPoint, hull->len-1),
-                           &g_array_index(boundary, RDPoint, p % boundary->len)) > 0) {
-      if(++p <= boundary->len) g_array_append_val(hull, g_array_index(boundary, RDPoint, p-1));
+        || rd_vector_cross(darray_index(hull, hull->len-2),
+                           darray_index(hull, hull->len-1),
+                           darray_index(hull, hull->len-1),
+                           darray_index(boundary, p % boundary->len)) > 0) {
+      if(++p <= boundary->len) darray_push(hull, darray_index(boundary, p-1));
     } else
-      g_array_remove_index(hull, hull->len-1);
+      darray_remove_fast(hull, hull->len-1);
   }
 
   return hull;
@@ -219,23 +235,23 @@ static int rd_graham_cmp(RDPoint* p, RDPoint* q, RDPoint* base)
   return -rd_vector_cross(base, p, base, q);
 }
 
-static gint32 rd_vector_dot(RDPoint* a, RDPoint* b, RDPoint* c, RDPoint* d)
+static int32_t rd_vector_dot(RDPoint* a, RDPoint* b, RDPoint* c, RDPoint* d)
 {
   return (b->x-a->x)*(d->x-c->x) + (b->y-a->y)*(d->y-c->y);
 }
 
-static gint32 rd_vector_cross(RDPoint* a, RDPoint* b, RDPoint* c, RDPoint* d)
+static int32_t rd_vector_cross(RDPoint* a, RDPoint* b, RDPoint* c, RDPoint* d)
 {
   return (b->x-a->x)*(d->y-c->y) - (b->y-a->y)*(d->x-c->x);
 }
 
-static RDRectangle* rd_fit_rectangle(GArray* hull)
+static RDRectangle* rd_fit_rectangle(DArray* hull)
 {
   RDRectangle* rectangle = malloc(sizeof(RDRectangle));
 
   if (rectangle) {
-    double min_area = G_MAXDOUBLE, slope, width, height;
-    gint32 base_idx = 0, leftmost_idx = base_idx, altitude_idx = -1, rightmost_idx = -1;
+    double min_area = -1, slope, width, height;
+    int32_t base_idx = 0, leftmost_idx = base_idx, altitude_idx = -1, rightmost_idx = -1;
     RDPoint* left_base_point, *right_base_point;
 
     while (base_idx < hull->len)
@@ -283,10 +299,10 @@ static RDRectangle* rd_fit_rectangle(GArray* hull)
         height = rd_line_distance(left_base_point, rd_hull_wrap_index(hull, altitude_idx), slope);
       }
 
-      if (width*height < min_area) {
+      if (width*height < min_area || min_area < 0) {
         RDPoint upper_left, upper_right;
-        gint16 dx = right_base_point->x - left_base_point->x,
-               dy = right_base_point->y - left_base_point->y;
+        int16_t dx = right_base_point->x - left_base_point->x,
+                dy = right_base_point->y - left_base_point->y;
 
         if (dx == 0) rectangle->orientation = M_PI_2;
         else         rectangle->orientation = atan((double) dy/dx);
@@ -295,11 +311,11 @@ static RDRectangle* rd_fit_rectangle(GArray* hull)
 
         rd_determine_fourth_point(left_base_point, right_base_point, rd_hull_wrap_index(hull, leftmost_idx), &upper_left);
         rd_determine_fourth_point(left_base_point, right_base_point, rd_hull_wrap_index(hull, rightmost_idx), &upper_right);
-        rectangle->cx = (gint16) (upper_left.x + upper_right.x - sin(rectangle->orientation)*height) / 2;
-        rectangle->cy = (gint16) (upper_left.y + upper_right.y + cos(rectangle->orientation)*height) / 2;
+        rectangle->cx = (int16_t) (upper_left.x + upper_right.x - sin(rectangle->orientation)*height) / 2;
+        rectangle->cy = (int16_t) (upper_left.y + upper_right.y + cos(rectangle->orientation)*height) / 2;
 
-        rectangle->width = (gint16) width;
-        rectangle->height = (gint16) height;
+        rectangle->width = (int16_t) width;
+        rectangle->height = (int16_t) height;
 
         min_area = width*height;
       }
@@ -311,9 +327,9 @@ static RDRectangle* rd_fit_rectangle(GArray* hull)
   return rectangle;
 }
 
-static RDPoint* rd_hull_wrap_index(GArray* hull, gint index)
+static RDPoint* rd_hull_wrap_index(DArray* hull, int32_t index)
 {
-  return &g_array_index(hull, RDPoint, index % hull->len);
+  return darray_index(hull, index % hull->len);
 }
 
 static double rd_line_distance(RDPoint* p, RDPoint* q, double slope)
@@ -331,8 +347,8 @@ static void rd_determine_fourth_point(RDPoint* p1, RDPoint* p2, RDPoint* q1, RDP
     double slope = (double) (p2->y - p1->y) / (p2->x - p1->x);
     double x = (double) (slope*(q1->y-p1->y) + q1->x + p1->x*pow(slope, 2)) / (pow(slope, 2) + 1);
 
-    q2->x = (gint16) x;
-    q2->y = (gint16) (slope*(x - p1->x)) + p1->y;
+    q2->x = (int16_t) x;
+    q2->y = (int16_t) (slope*(x - p1->x)) + p1->y;
   }
 }
 
@@ -350,21 +366,21 @@ static VALUE detect_rectangles_wrapper(VALUE self, VALUE data, VALUE width, VALU
   Check_Type(area_threshold, T_FIXNUM);
   Check_Type(intensity_threshold, T_FIXNUM);
 
-  gint16 c_width  = FIX2INT(width),
-         c_height = FIX2INT(height);
+  int16_t c_width  = FIX2INT(width),
+          c_height = FIX2INT(height);
 
   if (RSTRING_LEN(data) != c_width*c_height) {
     rb_raise(rb_eEOFError, "image data and dimensions (%ix%i) do not align", c_width, c_height);
   }
 
-  return detect_rectangles((unsigned char*) StringValuePtr(data), c_width, c_height, FIX2INT(area_threshold), (guint8) FIX2INT(area_threshold));
+  return detect_rectangles((uint8_t*) StringValuePtr(data), c_width, c_height, FIX2INT(area_threshold), (uint8_t) FIX2INT(area_threshold));
 }
 
-static VALUE detect_rectangles(guint8* data, gint16 width, gint16 height, gint32 area_threshold, guint8 intensity_threshold)
+static VALUE detect_rectangles(uint8_t* data, uint16_t width, uint16_t height, uint32_t area_threshold, uint8_t intensity_threshold)
 {
   VALUE rect_data = rb_ary_new();
   RDImage* image = NULL;
-  GPtrArray* regions = NULL;
+  DArray* regions = NULL;
 
   image = rd_image_new(data, width, height);
   if(!image) goto nomem;
@@ -372,16 +388,16 @@ static VALUE detect_rectangles(guint8* data, gint16 width, gint16 height, gint32
   regions = rd_extract_regions(image, intensity_threshold);
   if(!regions) goto nomem;
 
-  for (int r = 0; r < regions->len; r++) {
-    RDRegion* region = g_ptr_array_index(regions, r);
+  for (uint32_t r = 0; r < regions->len; r++) {
+    RDRegion* region = darray_index(regions, r);
 
     if (region->area >= area_threshold && region->boundary->len >= 3) {
-      GArray* hull = rd_convex_hull(region->boundary);
+      DArray* hull = rd_convex_hull(region->boundary);
       if(!hull) goto nomem;
 
       RDRectangle* rect = rd_fit_rectangle(hull);
       if(!rect) {
-        g_array_free(hull, TRUE);
+        darray_free(hull, NULL);
         goto nomem;
       }
 
@@ -392,7 +408,7 @@ static VALUE detect_rectangles(guint8* data, gint16 width, gint16 height, gint32
 
       rb_ary_push(rect_data, rb_rect);
 
-      g_array_free(hull, TRUE);
+      darray_free(hull, NULL);
       free(rect);
     }
   }
@@ -401,7 +417,7 @@ static VALUE detect_rectangles(guint8* data, gint16 width, gint16 height, gint32
 
 nomem:
   free(image);
-  g_ptr_array_free(regions, TRUE);
+  darray_free(regions, (DArrayFreeFunc) rd_region_free);
   rb_raise(rb_eNoMemError, "unable to allocate sufficient memory");
 }
 

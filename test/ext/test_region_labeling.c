@@ -14,11 +14,14 @@ static void test_region_labeling(void) {
 static void test_region_labeling_allocation(void)
 {
   RDImage *image = load_image_fixture("16x16_region_labeling_spiral.raw");
+  RDMatrix *labeled;
 
-  fail_nth_allocation = 1;
-  RDMatrix *labeled = rd_label_image_regions(image);
+  for(int i = 1; i < 3; i++) {
+    fail_nth_allocation = i;
+    labeled = rd_label_image_regions(image);
 
-  g_assert_null(labeled);
+    g_assert_null(labeled);
+  }
 
   rd_matrix_free(image);
 }
