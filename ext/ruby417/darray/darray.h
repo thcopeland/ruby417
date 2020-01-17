@@ -81,7 +81,7 @@ static void darray_free(DArray* array, DArrayFreeFunc liberator)
 
 static int darray_resize_if_necessary(DArray* array, uint32_t desired_capacity)
 {
-  if (desired_capacity > array->capacity) {
+  if (desired_capacity > array->capacity || array->capacity == 0) {
     uint32_t capacity2 = 2 << (int) log2(desired_capacity | 1);
     void** new_data = realloc(array->data, capacity2 * sizeof(void*));
 
@@ -181,11 +181,10 @@ static void darray_insertion_sort(DArray* read, DArray* write,
                                   uint32_t a,   uint32_t b,
                                   void* data, DArrayCompareFunc cmp)
 {
-  uint32_t t, p = a;
+  uint32_t t, p;
   void* elt;
 
-  while (p < b) {
-    t = p;
+  for (t=p=a; p<b; t=++p) {
     elt = darray_index(read, p);
 
     while (t > a && cmp(elt, darray_index(write, t-1), data) < 0) {
@@ -194,8 +193,6 @@ static void darray_insertion_sort(DArray* read, DArray* write,
     }
 
     darray_index_set(write, t, elt);
-
-    ++p;
   }
 }
 
