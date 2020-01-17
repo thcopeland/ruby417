@@ -1,4 +1,17 @@
-#include "utilities.h"
+#include <stdlib.h>
+#include <glib.h>
+#include <string.h>
+#include <errno.h>
+#include <stdio.h>
+
+static int fail_nth_allocation = -1;
+
+#define malloc(size) (fail_nth_allocation < 0 || (--fail_nth_allocation) ? malloc(size) : (fail_nth_allocation = -1, NULL))
+
+#include "rectangles/rectangles.c"
+#include "darray/darray.h"
+
+#define FIXTURES_DIR "fixtures"
 
 char* load_fixture_data(char* filename, int num)
 {
@@ -10,7 +23,7 @@ char* load_fixture_data(char* filename, int num)
   FILE* f = fopen(full_path, "rb");
 
   if(!f) {
-    perror("Ruby417 C tests");
+    perror("ERR");
     exit(-1);
   }
 
@@ -18,7 +31,7 @@ char* load_fixture_data(char* filename, int num)
   size_t bytes_read = fread(data, 1, num, f);
 
   if(bytes_read != num) {
-    fprintf(stderr, "Ruby417 C tests: unexpected EOF while reading %s (got %li, expected %i)\n", full_path, bytes_read, num);
+    fprintf(stderr, "ERR: unexpected EOF while reading %s (got %li, expected %i)\n", full_path, bytes_read, num);
     exit(-1);
   }
 

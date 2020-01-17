@@ -25,14 +25,9 @@ function error {
 base_dir="$(dirname $0)/../.."
 source_dir="$base_dir/ext/ruby417"
 test_dir="$base_dir/test/ext"
-out_file="test_$(date +%s).out"
 
 if [[ ! -e $source_dir/rectangles/rectangles.h ]]; then
   error "unable to find sources"
-fi
-
-if [[ ! -e $test_dir/tests.c ]]; then
-  error "unable to find tests"
 fi
 
 if [[ ! -d $test_dir/fixtures ]]; then
@@ -40,15 +35,28 @@ if [[ ! -d $test_dir/fixtures ]]; then
 fi
 
 echo "Recompiling suite..."
-gcc $test_dir/tests.c $test_dir/utilities.c                                     \
-  `pkg-config --libs --cflags glib-2.0` -lm                                     \
-  -DNO_RUBY -DEXT_INCLUDE_DIR="\"../../ext/ruby417/rectangles/rectangles.c\""   \
-  -o $test_dir/$out_file
 
-if [[ -e $test_dir/$out_file ]]; then
-  echo "Running tests..."
-  (cd $test_dir; ./$out_file $@)
+for file in $test_dir/test_*.c; do
+  gcc $file -I$source_dir                           \
+    `pkg-config --libs --cflags glib-2.0` -lm       \
+    -DNO_RUBY -o $test_dir/"test_$(date +%s)_$(basename $file).out"
 
-  rm $test_dir/$out_file
-  echo "Done."
-fi
+  if [ $? -ne 0 ]; then
+    error "Compilation failed on $(basename $file)"
+  else
+    basename $file
+  fi
+done
+
+echo "Running tests..."
+
+pushd $test_dir > /dev/null
+
+for file in test_*.out; do
+  ./$file $@
+  rm $file
+done
+
+popd > /dev/null
+
+echo "Done."

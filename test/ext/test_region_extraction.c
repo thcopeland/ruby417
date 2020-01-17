@@ -1,3 +1,41 @@
+#include "test_helper.h"
+
+#define assert_matrix_eq(m1, m2) do {                                           \
+  g_assert_cmpint(m1->height, ==, m2->height);                                  \
+  g_assert_cmpint(m1->width, ==, m2->width);                                    \
+                                                                                \
+  for (int i = 0; i < (m1->width)*(m2->height); i++)                            \
+    g_assert_cmpint((int) m1->data[i], ==, (int) m2->data[i]);                  \
+} while(0);
+
+static void test_region_labeling(void) {
+  RDImage *image = load_image_fixture("16x16_region_labeling_spiral.raw");
+  RDMatrix *regions = load_matrix_fixture("16x16_region_labeling_spiral_labeled");
+
+  RDMatrix *labeled = rd_label_image_regions(image);
+
+  assert_matrix_eq(regions, labeled);
+
+  rd_matrix_free(labeled);
+  rd_matrix_free(regions);
+  rd_matrix_free(image);
+}
+
+static void test_region_labeling_allocation(void)
+{
+  RDImage *image = load_image_fixture("16x16_region_labeling_spiral.raw");
+  RDMatrix *labeled;
+
+  for(int i = 1; i < 3; i++) {
+    fail_nth_allocation = i;
+    labeled = rd_label_image_regions(image);
+
+    g_assert_null(labeled);
+  }
+
+  rd_matrix_free(image);
+}
+
 static void test_region_extraction(void)
 {
   RDImage* image = load_image_fixture("320x320_solitary_circle.raw");
@@ -47,4 +85,16 @@ static void test_region_color_threshold(void)
   darray_free(regions, (DArrayFreeFunc) rd_region_free);
 
   rd_matrix_free(image);
+}
+
+int main(int argc, char* argv[])
+{
+  g_test_init(&argc, &argv, NULL);
+
+  g_test_add_func("/regions/labeling", (GTestFunc) test_region_labeling);
+  g_test_add_func("/regions/alloc", (GTestFunc) test_region_labeling_allocation);
+  g_test_add_func("/regions/extraction", (GTestFunc) test_region_extraction);
+  g_test_add_func("/regions/threshold", (GTestFunc) test_region_color_threshold);
+
+  return g_test_run();
 }

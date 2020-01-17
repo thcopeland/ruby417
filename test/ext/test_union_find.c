@@ -1,3 +1,5 @@
+#include "test_helper.h"
+
 #define assert_connected(acc, a, b) \
   g_assert_cmpint(uf_find(acc, a), ==, uf_find(acc, b));
 
@@ -29,4 +31,14 @@ static void test_union_find(void){
   assert_connected(acc, 3, 17);
 
   darray_free(acc, NULL);
+}
+
+int main(int argc, char** argv)
+{
+  g_test_init(&argc, &argv, NULL);
+
+  g_test_add_func("/union_find/resizing", (GTestFunc) test_uf_resizing);
+  g_test_add_func("/union_find/usage", (GTestFunc) test_union_find);
+
+  return g_test_run();
 }

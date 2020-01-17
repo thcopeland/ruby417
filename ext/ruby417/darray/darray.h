@@ -1,3 +1,6 @@
+#ifndef DARRAY_H
+#define DARRAY_H
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h> /* memcpy */
@@ -195,3 +198,5 @@ static void darray_insertion_sort(DArray* read, DArray* write,
     ++p;
   }
 }
+
+#endif
