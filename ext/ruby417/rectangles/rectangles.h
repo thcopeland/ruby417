@@ -1,4 +1,3 @@
-// #include <glib.h> /* GArray functions, MAX */
 #include <stdint.h>
 #include "../darray/darray.h"
 
