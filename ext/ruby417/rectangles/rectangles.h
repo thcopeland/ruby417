@@ -60,8 +60,10 @@ static int32_t rd_determine_label(RDImage*, RDMatrix*, DArray*, int16_t, int16_t
 
 static RDRegion* rd_region_new(void);
 static void rd_region_free(RDRegion*);
+static RDPoint* rd_point_new(int16_t, int16_t);
 
 static DArray* rd_extract_regions(RDImage*, uint8_t);
+static void rd_extract_contour(DArray*, RDMatrix*, int16_t, int16_t);
 
 static DArray* rd_convex_hull(DArray*);
 static int rd_graham_cmp(RDPoint*, RDPoint*, RDPoint*);

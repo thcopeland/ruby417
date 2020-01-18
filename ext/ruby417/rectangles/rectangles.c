@@ -59,6 +59,8 @@ static RDImage* rd_image_new(uint8_t* data, int16_t width, int16_t height)
 
 static RDMatrix* rd_label_image_regions(RDImage* image)
 {
+  /* TODO return max label and take a pointer to label matrix, use to initialize
+    regions in rd_extract_regions to avoid resizing                           */
   RDMatrix* labels = rd_matrix_new(image->width, image->height);
   DArray* label_eqvs = darray_new(128);
   if (!labels || !label_eqvs) goto abort;
@@ -134,6 +136,18 @@ static void rd_region_free(RDRegion* region)
   free(region);
 }
 
+static RDPoint* rd_point_new(int16_t x, int16_t y)
+{
+  RDPoint* point = malloc(sizeof(RDPoint));
+
+  if (point) {
+    point->x = x;
+    point->y = y;
+  }
+
+  return point;
+}
+
 static DArray* rd_extract_regions(RDImage* image, uint8_t intensity_threshold)
 {
   DArray* regions = darray_new(16);
@@ -157,6 +171,7 @@ static DArray* rd_extract_regions(RDImage* image, uint8_t intensity_threshold)
           region = rd_region_new();
 
           if (regions->len > label && region) {
+            rd_extract_contour(region->boundary, labels, x, y);
             darray_index_set(regions, label, region);
           } else {
             goto abort;
@@ -166,21 +181,6 @@ static DArray* rd_extract_regions(RDImage* image, uint8_t intensity_threshold)
         region->area++;
         region->cx += x;
         region->cy += y;
-
-        if (x == 0 || y == 0 || x == image->width-1 || y == image->height-1 ||
-            rd_matrix_read_fast(labels, x-1, y) != label ||
-            rd_matrix_read_fast(labels, x, y-1) != label ||
-            rd_matrix_read_fast(labels, x+1, y) != label ||
-            rd_matrix_read_fast(labels, x, y+1) != label)
-        {
-          RDPoint* point = malloc(sizeof(RDPoint));
-          if (!point) goto abort;
-
-          point->x = x;
-          point->y = y;
-
-          darray_push(region->boundary, point);
-        }
       }
     }
   }
@@ -203,6 +203,44 @@ abort:
   rd_matrix_free(labels);
 
   return regions;
+}
+
+static void rd_extract_contour(DArray* boundary, RDMatrix* labels, int16_t start_x, int16_t start_y)
+{
+  const int RIGHT = 0, DOWN = 1, LEFT = 2, UP = 3;
+
+  RDPoint* point;
+  int32_t label, target_label = rd_matrix_read_fast(labels, start_x, start_y);
+  int direction = DOWN;
+  int16_t x = start_x, y = start_y;
+
+  do
+    {
+      label = rd_matrix_read_safe(labels, x, y, ~target_label);
+
+      if (label == target_label) {
+        if (boundary->len == 0 || x != point->x || y != point->y) {
+          point = rd_point_new(x, y);
+          if(!point) goto abort;
+
+          darray_push(boundary, point);
+        }
+
+        direction = (direction - 1) & 3; /* left turn */
+      } else {
+         direction = (direction + 1) & 3; /* right turn */
+      }
+
+      if      (direction == RIGHT) x++;
+      else if (direction == DOWN)  y++;
+      else if (direction == LEFT)  x--;
+      else if (direction == UP)    y--;
+    }
+  while (x != start_x || y != start_y);
+
+abort:
+  /* set errno to distinguish this case from success -- could apply elsewhere */
+  return;
 }
 
 static DArray* rd_convex_hull(DArray* boundary)
