@@ -44,7 +44,7 @@ char* load_fixture_data(char* filename, int num)
 RDImage* load_image_fixture(char* filename)
 {
   RDImage* img = malloc(sizeof(RDImage));
-  int width, height;
+  unsigned int width, height;
 
   sscanf(filename, "%ux%u", &width, &height);
 
@@ -58,7 +58,7 @@ RDImage* load_image_fixture(char* filename)
 RDMatrix* load_matrix_fixture(char* filename)
 {
   RDMatrix* mtx = malloc(sizeof(RDImage));
-  int width, height;
+  unsigned int width, height;
 
   sscanf(filename, "%ux%u", &width, &height);
   char* data = load_fixture_data(filename, width*height);
