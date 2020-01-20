@@ -74,10 +74,10 @@ static void test_rectangle_fitting(void)
              * rect3 = rd_fit_rectangle(hull3),
              * rect4 = rd_fit_rectangle(hull4);
 
-  assert_rectangle(rect1, 140, 205, 160, 50, 0);
-  assert_rectangle(rect2, 127, 127, 255, 255, 0);
-  assert_rectangle(rect3, 184, 106, 147, 95, -0.833);
-  assert_rectangle(rect4, 60, 61, 30, 60, M_PI_4);
+  assert_rectangle(rect1, 140, 205, 161, 51, 0);
+  assert_rectangle(rect2, 127, 128, 256, 256, 0);
+  assert_rectangle(rect3, 184, 106, 148, 96, -0.833);
+  assert_rectangle(rect4, 60, 61, 31, 61, M_PI_4);
 
   free(rect1);
   free(rect2);

@@ -358,15 +358,15 @@ static RDRectangle* rd_fit_rectangle(DArray* hull)
       }
 
       if (left_base_point->x == right_base_point->x) {
-        width  = abs(rd_hull_wrap_index(hull, rightmost_idx)->y - rd_hull_wrap_index(hull, leftmost_idx)->y);
-        height = abs(rd_hull_wrap_index(hull, altitude_idx)->x - left_base_point->x);
+        width  = abs(rd_hull_wrap_index(hull, rightmost_idx)->y - rd_hull_wrap_index(hull, leftmost_idx)->y)+1;
+        height = abs(rd_hull_wrap_index(hull, altitude_idx)->x - left_base_point->x)+1;
       } else if (left_base_point->y == right_base_point->y) {
-        width  = abs(rd_hull_wrap_index(hull, rightmost_idx)->x - rd_hull_wrap_index(hull, leftmost_idx)->x);
-        height = abs(rd_hull_wrap_index(hull, altitude_idx)->y - left_base_point->y);
+        width  = abs(rd_hull_wrap_index(hull, rightmost_idx)->x - rd_hull_wrap_index(hull, leftmost_idx)->x)+1;
+        height = abs(rd_hull_wrap_index(hull, altitude_idx)->y - left_base_point->y)+1;
       } else {
         slope = (double) (left_base_point->y - right_base_point->y) / (left_base_point->x - right_base_point->x);
-        width = rd_line_distance(rd_hull_wrap_index(hull, leftmost_idx), rd_hull_wrap_index(hull, rightmost_idx), -1/slope);
-        height = rd_line_distance(left_base_point, rd_hull_wrap_index(hull, altitude_idx), slope);
+        width = rd_line_distance(rd_hull_wrap_index(hull, leftmost_idx), rd_hull_wrap_index(hull, rightmost_idx), -1/slope)+1;
+        height = rd_line_distance(left_base_point, rd_hull_wrap_index(hull, altitude_idx), slope)+1;
       }
 
       if (width*height < min_area || min_area < 0) {
