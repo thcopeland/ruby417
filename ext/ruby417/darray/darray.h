@@ -23,7 +23,7 @@ static void* darray_index(DArray*, uint32_t);
 static void* darray_index_set(DArray*, uint32_t, void*);
 static void* darray_remove_fast(DArray*, uint32_t);
 static int darray_push(DArray*, void*);
-static void darray_msort(DArray*, void*, DArrayCompareFunc);
+static int darray_msort(DArray*, void*, DArrayCompareFunc);
 static void darray_msort_recurse(DArray*, DArray*, uint32_t, uint32_t, void*, DArrayCompareFunc);
 static void darray_msort_merge(DArray*, DArray*, uint32_t, uint32_t, uint32_t, void*, DArrayCompareFunc);
 static void darray_insertion_sort(DArray*, DArray*, uint32_t, uint32_t, void*, DArrayCompareFunc);
@@ -134,7 +134,7 @@ static void* darray_remove_fast(DArray* array, uint32_t index)
   return elt;
 }
 
-static void darray_msort(DArray* array, void* data, DArrayCompareFunc cmp)
+static int darray_msort(DArray* array, void* data, DArrayCompareFunc cmp)
 {
   DArray* aux = darray_dup(array);
 
@@ -142,7 +142,11 @@ static void darray_msort(DArray* array, void* data, DArrayCompareFunc cmp)
     darray_msort_recurse(aux, array, 0, array->len, data, cmp);
 
     darray_free(aux, NULL);
+
+    return 1;
   }
+
+  return 0;
 }
 
 static void darray_msort_recurse(DArray* read, DArray* write,

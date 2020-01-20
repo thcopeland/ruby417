@@ -94,12 +94,59 @@ static void test_rectangle_fitting(void)
   rd_matrix_free(image);
 }
 
+static int rectangle_runthrough(RDImage* image)
+{
+  rd_error = ALLWELL;
+
+  DArray* regions = rd_extract_regions(image, 0);
+  if (rd_error != ALLWELL) return 0;
+
+  RDRegion* region = darray_index(regions, 1);
+  DArray* hull = rd_convex_hull(region->boundary);
+
+  if (rd_error != ALLWELL) {
+    darray_free(regions, (DArrayFreeFunc) rd_region_free);
+    return 0;
+  }
+
+  RDRectangle* rect = rd_fit_rectangle(hull);
+
+  if (rd_error != ALLWELL) {
+    darray_free(regions, (DArrayFreeFunc) rd_region_free);
+    darray_free(hull, NULL);
+    return 0;
+  }
+
+  darray_free(regions, (DArrayFreeFunc) rd_region_free);
+  darray_free(hull, NULL);
+  free(rect);
+
+  return 1;
+}
+
+static void test_allocation_failures(void)
+{
+  /* Run the entire rectangle detection process several hundred times, failing a
+     different memory allocation each time, until it works. If this test doesn't
+     segfault, chances are that memory allocation failures are handled properly. */
+  RDImage* image = load_image_fixture("16x16_region_labeling_spiral.raw");
+
+  int i = 0;
+  do {
+    fail_subsequent_alloc(i++);
+  } while(rectangle_runthrough(image) == 0);
+  fail_subsequent_alloc(-1);
+
+  free(image);
+}
+
 int main(int argc, char* argv[])
 {
   g_test_init(&argc, &argv, NULL);
 
   g_test_add_func("/convex_hull", (GTestFunc) test_convex_hull);
   g_test_add_func("/rectangles", (GTestFunc) test_rectangle_fitting);
+  g_test_add_func("/rectangles/allocations", (GTestFunc) test_allocation_failures);
 
   return g_test_run();
 }

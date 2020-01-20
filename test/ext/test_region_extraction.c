@@ -21,21 +21,6 @@ static void test_region_labeling(void) {
   rd_matrix_free(image);
 }
 
-static void test_region_labeling_allocation(void)
-{
-  RDImage *image = load_image_fixture("16x16_region_labeling_spiral.raw");
-  RDMatrix *labeled;
-
-  for(int i = 1; i < 3; i++) {
-    fail_nth_allocation = i;
-    labeled = rd_label_image_regions(image);
-
-    g_assert_null(labeled);
-  }
-
-  rd_matrix_free(image);
-}
-
 static void test_region_extraction(void)
 {
   RDImage* image = load_image_fixture("320x320_solitary_circle.raw");
@@ -91,7 +76,6 @@ int main(int argc, char* argv[])
   g_test_init(&argc, &argv, NULL);
 
   g_test_add_func("/regions/labeling", (GTestFunc) test_region_labeling);
-  g_test_add_func("/regions/alloc", (GTestFunc) test_region_labeling_allocation);
   g_test_add_func("/regions/extraction", (GTestFunc) test_region_extraction);
   g_test_add_func("/regions/threshold", (GTestFunc) test_region_color_threshold);
 

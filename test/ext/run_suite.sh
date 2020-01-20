@@ -39,7 +39,7 @@ echo "Recompiling suite..."
 for file in $test_dir/test_*.c; do
   gcc $file -I$source_dir                           \
     `pkg-config --libs --cflags glib-2.0` -lm       \
-    -DNO_RUBY -o $test_dir/"test_$(date +%s)_$(basename $file).out"
+    -DNO_RUBY -o $test_dir/"exec_$(date +%s)_$(basename $file).out"
 
   if [ $? -ne 0 ]; then
     error "Compilation failed on $(basename $file)"
@@ -52,7 +52,7 @@ echo "Running tests..."
 
 pushd $test_dir > /dev/null
 
-for file in test_*.out; do
+for file in exec_*.out; do
   ./$file $@
   rm $file
 done

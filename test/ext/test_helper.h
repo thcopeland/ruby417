@@ -4,9 +4,13 @@
 #include <errno.h>
 #include <stdio.h>
 
-static int fail_nth_allocation = -1;
-
-#define malloc(size) (fail_nth_allocation < 0 || (--fail_nth_allocation) ? malloc(size) : (fail_nth_allocation = -1, NULL))
+/* These macros wrap their stdlib counterparts, except that they produce NULL
+   as directed by fail_subsequent_allocation, simulating allocation failure.  */
+static long fail_subsequent_allocation = -1;
+#define fail_subsequent_alloc(n) (fail_subsequent_allocation = n)
+#define malloc(s) ((fail_subsequent_allocation < 0 || fail_subsequent_allocation-- > 0)?malloc(s):NULL)
+#define calloc(n, s) ((fail_subsequent_allocation < 0 || fail_subsequent_allocation-- > 0)?calloc(n, s):NULL)
+#define realloc(p, s) ((fail_subsequent_allocation < 0 || fail_subsequent_allocation-- > 0)?realloc(p, s):NULL)
 
 #include "rectangles/rectangles.c"
 #include "darray/darray.h"

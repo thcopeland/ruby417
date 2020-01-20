@@ -1,14 +1,16 @@
 #include "rectangles.h"
 
-static void uf_union(DArray* acc, uint32_t a, uint32_t b)
+static int uf_union(DArray* acc, uint32_t a, uint32_t b)
 {
   uint32_t max = (a > b) ? a : b;
 
   for (uint32_t z = acc->len; z <= max; z++) {
-    if(!darray_push(acc, INT2PTR(z))) return;
+    if(!darray_push(acc, INT2PTR(z))) return 0;
   }
 
   darray_index_set(acc, uf_find(acc, a), INT2PTR(uf_find(acc, b)));
+
+  return 1;
 }
 
 static int64_t uf_find(DArray* acc, uint32_t site)
@@ -33,7 +35,7 @@ static RDMatrix* rd_matrix_new(uint16_t width, uint16_t height)
     m->height = height;
     m->data = calloc(width*height, sizeof(m->data[0]));
 
-    if(!m->data) {
+    if(!m->data && width != 0 && height != 0) {
       free(m);
       return NULL;
     }
@@ -59,7 +61,7 @@ static RDMatrix* rd_label_image_regions(RDImage* image)
 {
   RDMatrix* labels = rd_matrix_new(image->width, image->height);
   DArray* label_eqvs = darray_new(128);
-  if (!labels || !label_eqvs) goto abort;
+  if (!labels || !label_eqvs) goto nomem;
 
   uint32_t x, y, pixel_label, current_label = 1;
   for (y = 0; y < image->height; y++) {
@@ -70,7 +72,11 @@ static RDMatrix* rd_label_image_regions(RDImage* image)
         rd_matrix_set(labels, x, y, pixel_label);
       } else {
         rd_matrix_set(labels, x, y, current_label);
-        uf_union(label_eqvs, current_label, current_label); /* expand the accumulator */
+        /* expand the accumulator */
+        if (!uf_union(label_eqvs, current_label, current_label)) {
+          goto nomem;
+        }
+
         current_label++;
       }
     }
@@ -83,8 +89,8 @@ static RDMatrix* rd_label_image_regions(RDImage* image)
   darray_free(label_eqvs, NULL);
   return labels;
 
-abort:
-
+nomem:
+  rd_error = RDNOMEM;
   darray_free(label_eqvs, NULL);
   rd_matrix_free(labels);
   return NULL;
@@ -121,6 +127,11 @@ static RDRegion* rd_region_new(void)
     region->cx = 0;
     region->cy = 0;
     region->area = 0;
+
+    if (!region->boundary) {
+      free(region);
+      return NULL;
+    }
   }
 
   return region;
@@ -128,8 +139,10 @@ static RDRegion* rd_region_new(void)
 
 static void rd_region_free(RDRegion* region)
 {
-  darray_free(region->boundary, (DArrayFreeFunc) free);
-  free(region);
+  if (region) {
+    darray_free(region->boundary, (DArrayFreeFunc) free);
+    free(region);
+  }
 }
 
 static RDPoint* rd_point_new(uint16_t x, uint16_t y)
@@ -148,7 +161,7 @@ static DArray* rd_extract_regions(RDImage* image, uint8_t intensity_threshold)
 {
   DArray* regions = darray_new(16);
   RDMatrix* labels = rd_label_image_regions(image);
-  if (!labels) goto abort;
+  if (!labels || !regions) goto nomem;
 
   uint16_t x, y;
   uint32_t label;
@@ -161,16 +174,22 @@ static DArray* rd_extract_regions(RDImage* image, uint8_t intensity_threshold)
         region = darray_index(regions, label);
 
         if (!region) {
-          while(regions->len <= label)
-            darray_push(regions, NULL);
+          while(regions->len <= label) {
+            /* resizing the dynamic array may fail */
+            if(!darray_push(regions, NULL)) goto nomem;
+          }
 
           region = rd_region_new();
 
-          if (regions->len > label && region) {
+          if (region) {
             rd_extract_contour(region->boundary, labels, x, y);
+
+            /* populating the boundary array may fail */
+            if (rd_error != ALLWELL) goto abort;
+
             darray_index_set(regions, label, region);
           } else {
-            goto abort;
+            goto nomem;
           }
         }
 
@@ -194,11 +213,16 @@ static DArray* rd_extract_regions(RDImage* image, uint8_t intensity_threshold)
     }
   }
 
-abort:
-
   rd_matrix_free(labels);
-
   return regions;
+
+nomem:
+  rd_error = RDNOMEM;
+
+abort:
+  rd_matrix_free(labels);
+  darray_free(regions, (DArrayFreeFunc) rd_region_free);
+  return NULL;
 }
 
 static void rd_extract_contour(DArray* boundary, RDMatrix* labels, uint16_t start_x, uint16_t start_y)
@@ -217,9 +241,11 @@ static void rd_extract_contour(DArray* boundary, RDMatrix* labels, uint16_t star
       if (label == target_label) {
         if (boundary->len == 0 || x != point->x || y != point->y) {
           point = rd_point_new(x, y);
-          if(!point) goto abort;
 
-          darray_push(boundary, point);
+          if (!point || !darray_push(boundary, point)) {
+            rd_error = RDNOMEM;
+            return;
+          }
         }
 
         direction = (direction - 1) & 3; /* left turn */
@@ -233,20 +259,21 @@ static void rd_extract_contour(DArray* boundary, RDMatrix* labels, uint16_t star
       else if (direction == UP)    y--;
     }
   while (x != start_x || y != start_y);
-
-abort:
-  /* set errno to distinguish this case from success -- could apply elsewhere */
-  return;
 }
 
 static DArray* rd_convex_hull(DArray* boundary)
 {
   if(boundary->len < 3) return NULL;
 
-  DArray* hull = darray_new(3);
-  darray_push(hull, darray_index(boundary, 0));
+  int status = 0;
+  DArray* hull = darray_new(boundary->len / 4);
+  if(!hull) goto nomem;
 
-  darray_msort(boundary, darray_index(boundary, 0), (DArrayCompareFunc) rd_graham_cmp);
+  status = darray_push(hull, darray_index(boundary, 0));
+  if (status != 1) goto nomem;
+
+  status = darray_msort(boundary, darray_index(boundary, 0), (DArrayCompareFunc) rd_graham_cmp);
+  if (status != 1) goto nomem;
 
   uint32_t p = 1;
 
@@ -256,12 +283,21 @@ static DArray* rd_convex_hull(DArray* boundary)
                            darray_index(hull, hull->len-1),
                            darray_index(hull, hull->len-1),
                            darray_index(boundary, p % boundary->len)) > 0) {
-      if(++p <= boundary->len) darray_push(hull, darray_index(boundary, p-1));
+      if(++p <= boundary->len) {
+        if (darray_push(hull, darray_index(boundary, p-1)) != 1)
+          goto nomem;
+      }
     } else
       darray_remove_fast(hull, hull->len-1);
   }
 
   return hull;
+
+nomem:
+
+  rd_error = RDNOMEM;
+  darray_free(hull, NULL);
+  return NULL;
 }
 
 static int rd_graham_cmp(RDPoint* p, RDPoint* q, RDPoint* base)
@@ -356,6 +392,8 @@ static RDRectangle* rd_fit_rectangle(DArray* hull)
 
       ++base_idx;
     }
+  } else {
+    rd_error = RDNOMEM;
   }
 
   return rectangle;
@@ -412,28 +450,30 @@ static VALUE detect_rectangles_wrapper(VALUE self, VALUE data, VALUE width, VALU
 
 static VALUE detect_rectangles(uint8_t* data, uint16_t width, uint16_t height, uint32_t area_threshold, uint8_t intensity_threshold)
 {
+  /* reset error code */
+  rd_error = ALLWELL;
+
   VALUE rect_data = rb_ary_new();
   RDImage* image = NULL;
-  DArray* regions = NULL;
+  DArray* regions = NULL,
+        * hull;
+  RDRegion* region;
 
   image = rd_image_new(data, width, height);
-  if(!image) goto nomem;
+  if(!image) rb_raise(rb_eNoMemError, "unable to allocate sufficient memory");
 
   regions = rd_extract_regions(image, intensity_threshold);
-  if(!regions) goto nomem;
+  if (rd_error != ALLWELL) goto upon_error;
 
   for (uint32_t r = 0; r < regions->len; r++) {
-    RDRegion* region = darray_index(regions, r);
+    region = darray_index(regions, r);
 
     if (region->area >= area_threshold && region->boundary->len >= 3) {
-      DArray* hull = rd_convex_hull(region->boundary);
-      if(!hull) goto nomem;
+      hull = rd_convex_hull(region->boundary);
+      if (rd_error != ALLWELL) goto upon_error;
 
       RDRectangle* rect = rd_fit_rectangle(hull);
-      if(!rect) {
-        darray_free(hull, NULL);
-        goto nomem;
-      }
+      if (rd_error != ALLWELL) goto upon_error;
 
       VALUE rect_args[6] = { INT2FIX(rect->cx),    INT2FIX(rect->cy),
                              INT2FIX(rect->width), INT2FIX(rect->height),
@@ -447,12 +487,23 @@ static VALUE detect_rectangles(uint8_t* data, uint16_t width, uint16_t height, u
     }
   }
 
+  darray_free(regions, (DArrayFreeFunc) rd_region_free);
+  free(image);
+
   return rect_data;
 
-nomem:
-  free(image);
+upon_error:
+
+  if (hull) darray_free(hull, NULL);
   darray_free(regions, (DArrayFreeFunc) rd_region_free);
-  rb_raise(rb_eNoMemError, "unable to allocate sufficient memory");
+  free(image);
+
+  switch(rd_error) {
+    case RDNOMEM:
+      rb_raise(rb_eNoMemError, "unable to allocate sufficient memory");
+    default:
+      rb_raise(rb_eRuntimeError, "BUG: an unexpected error occurred within Ruby417 native extension (code %i)", rd_error);
+  }
 }
 
 static VALUE Rectangle_initialize(VALUE self, VALUE cx, VALUE cy, VALUE width, VALUE height, VALUE orientation, VALUE area)

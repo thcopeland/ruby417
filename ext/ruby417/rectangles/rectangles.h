@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <stdlib.h> /* malloc, calloc */
+#include <stdlib.h>
 #include <math.h> /* sin, cos, atan, pow, sqrt, M_PI, M_PI_2 */
 #include "../darray/darray.h"
 
@@ -39,7 +39,7 @@ typedef struct {
 
 typedef struct {
   DArray* boundary;
-  uint32_t cx, cy;
+  uint64_t cx, cy;
   uint32_t area;
 } RDRegion;
 
@@ -51,7 +51,11 @@ typedef struct {
 #define INT2PTR(int) ((void*) (long) (int))
 #define PTR2INT(ptr) ((long) (ptr))
 
-static void uf_union(DArray*, uint32_t, uint32_t);
+#define ALLWELL 0
+#define RDNOMEM 12
+static unsigned int rd_error = ALLWELL;
+
+static int uf_union(DArray*, uint32_t, uint32_t);
 static int64_t uf_find(DArray*, uint32_t);
 
 static RDMatrix* rd_matrix_new(uint16_t, uint16_t);
