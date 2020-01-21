@@ -1,5 +1,10 @@
 #include "rectangles.h"
 
+/*
+ * Records a connection (or, in this case, an equivilance) between two "sites,"
+ * represented as integers. If the accumulator isn't large enough already, it
+ * expands to fit the largest site.
+ */
 static int uf_union(DArray* acc, uint32_t a, uint32_t b)
 {
   uint32_t max = (a > b) ? a : b;
@@ -13,6 +18,12 @@ static int uf_union(DArray* acc, uint32_t a, uint32_t b)
   return 1;
 }
 
+/*
+ * Returns the root of the site, such that all connected sites share one root,
+ * or -1 if the given site isn't recorded in the accumulator.
+ * This implementation includes path compression for speed at little cost to
+ * complexity.
+ */
 static int64_t uf_find(DArray* acc, uint32_t site)
 {
   if (site < 0 || site >= acc->len) {
@@ -20,12 +31,18 @@ static int64_t uf_find(DArray* acc, uint32_t site)
   } else if (darray_index(acc, site) == INT2PTR(site)) {
     return site;
   } else {
+    /* The PTR2INT and INT2PTR conversions are messy, but they save a lot of
+     * dynamic memory allocations. */
     return PTR2INT(darray_index_set(acc, site,
             INT2PTR(uf_find(acc, PTR2INT(darray_index(acc, site))))
            ));
   }
 }
 
+/*
+ * Allocates and initializes an RDMatrix, or returns NULL if some memory
+ * allocation failed. The contents of the matrix are initialized to zeros.
+ */
 static RDMatrix* rd_matrix_new(uint16_t width, uint16_t height)
 {
   RDMatrix* m = malloc(sizeof(RDMatrix));
@@ -44,6 +61,9 @@ static RDMatrix* rd_matrix_new(uint16_t width, uint16_t height)
   return m;
 }
 
+/*
+ * Allocate and initialize an RDImage.
+ */
 static RDImage* rd_image_new(uint8_t* data, uint16_t width, uint16_t height)
 {
   RDImage* i = malloc(sizeof(RDImage));
@@ -57,6 +77,17 @@ static RDImage* rd_image_new(uint8_t* data, uint16_t width, uint16_t height)
   return i;
 }
 
+/*
+ * Given an RDImage, returns an RDMatrix of the same size that labels each image
+ * pixel with a component number--pixels of the same label belong to the same
+ * component. This is very helpful during contour tracing.
+ *
+ * The algorithm takes each pixel row by row, column by column, and, if there
+ * are any labeled neighboring pixels of the same color, assignes that label to
+ * the pixel. If not, the pixel is assigned a new, unique label. This method
+ * often produces components that have different labels assigned to its pixels,
+ * so Union-Find is used to track and resolve these equivalencies.
+ */
 static RDMatrix* rd_label_image_regions(RDImage* image)
 {
   RDMatrix* labels = rd_matrix_new(image->width, image->height);
@@ -82,6 +113,7 @@ static RDMatrix* rd_label_image_regions(RDImage* image)
     }
   }
 
+  /* Resolve label equivalencies by relabeling each pixel with the root label */
   for (uint32_t z = 0; z < image->width*image->height; z++) {
     labels->data[z] = uf_find(label_eqvs, labels->data[z]);
   }
@@ -90,12 +122,25 @@ static RDMatrix* rd_label_image_regions(RDImage* image)
   return labels;
 
 nomem:
+  /* if a memory allocation fails, set the error, free as much as possible, and
+   * exit with NULL. */
   rd_error = RDNOMEM;
   darray_free(label_eqvs, NULL);
   rd_matrix_free(labels);
   return NULL;
 }
 
+/*
+ * Examine the neighboring pixels in order to determine whether to assign an
+ * existing component label, or to use a new one. Pixels are considered
+ * neighbors according to 4-connectivity -- north/east/south/west.
+ * 8-connectivity wouldn't be significantly different in implementation, but the
+ * contour tracing algorithm used in rd_extract_contour() only works reliably
+ * for 4-connected components.
+ *
+ * While examining the neighboring pixels labels, label equivalencies are also
+ * established.
+ */
 static uint32_t rd_determine_label(RDImage* image, RDMatrix* labels, DArray* eqvs, uint16_t x, uint16_t y)
 {
   static const int offsets[2][2] = {{-1, 0}, {0, -1}}; /* 4-connectivity */
@@ -110,7 +155,9 @@ static uint32_t rd_determine_label(RDImage* image, RDMatrix* labels, DArray* eqv
     if (color == rd_matrix_read_safe(image, nx, ny, ~color)) {
       neighbor_label = rd_matrix_read_fast(labels, nx, ny);
 
+      /* record equivalencies */
       if (best_label) uf_union(eqvs, best_label, neighbor_label);
+      /* choose the lower label */
       if (!best_label || neighbor_label < best_label) best_label = neighbor_label;
     }
   }
@@ -118,6 +165,9 @@ static uint32_t rd_determine_label(RDImage* image, RDMatrix* labels, DArray* eqv
   return best_label;
 }
 
+/*
+ * Allocate and initialize an RDRegion, or return NULL if the allocation fails.
+ */
 static RDRegion* rd_region_new(void)
 {
   RDRegion* region = malloc(sizeof(RDRegion));
@@ -157,6 +207,12 @@ static RDPoint* rd_point_new(uint16_t x, uint16_t y)
   return point;
 }
 
+/*
+ * Given an RDImage, calculate the component labels and extract certain region
+ * information: region center, area, and the *outer* boundary pixels. To improve
+ * performance, only pixels of intensities larger or equal to the threshold are
+ * considered for components.
+ */
 static DArray* rd_extract_regions(RDImage* image, uint8_t intensity_threshold)
 {
   DArray* regions = darray_new(16);
@@ -174,6 +230,8 @@ static DArray* rd_extract_regions(RDImage* image, uint8_t intensity_threshold)
         region = darray_index(regions, label);
 
         if (!region) {
+          /* create a new region and add it to the lookup */
+
           while(regions->len <= label) {
             /* resizing the dynamic array may fail */
             if(!darray_push(regions, NULL)) goto nomem;
@@ -200,6 +258,8 @@ static DArray* rd_extract_regions(RDImage* image, uint8_t intensity_threshold)
     }
   }
 
+  /* drop NULL elements (created during array expansion) and normalize region
+   * center coordinates. */
   uint32_t i = 0;
   while (i < regions->len) {
     region = darray_index(regions, i);
@@ -225,6 +285,12 @@ abort:
   return NULL;
 }
 
+/*
+ * Beginning at the given pixel, the square-tracing algorithm is used to follow
+ * the boundary of the component associated with that pixel clockwise. This
+ * algorithm is simple and fast, but it only works reliably for 4-connected
+ * components.
+ */
 static void rd_extract_contour(DArray* boundary, RDMatrix* labels, uint16_t start_x, uint16_t start_y)
 {
   const int RIGHT = 0, DOWN = 1, LEFT = 2, UP = 3;
@@ -261,6 +327,14 @@ static void rd_extract_contour(DArray* boundary, RDMatrix* labels, uint16_t star
   while (x != start_x || y != start_y);
 }
 
+/*
+ * Implements the Graham Scan technique to find the convex hull of the given
+ * region boundary.
+ * Note: The resulting DArray is populated by pointers to RDPoints that are also
+ * pointed to by the boundary DArray. Use rd_region_free() to free the region
+ * and the memory pointed at by the boundary array, and darray_free(_, NULL) to
+ * free the hull array in order to avoid double-free's.
+ */
 static DArray* rd_convex_hull(DArray* boundary)
 {
   if(boundary->len < 3) return NULL;
@@ -300,21 +374,42 @@ nomem:
   return NULL;
 }
 
+/*
+ * Returns an integer with the same sign as the angle between base->p vector and
+ * base->q vector.
+ */
 static int rd_graham_cmp(RDPoint* p, RDPoint* q, RDPoint* base)
 {
   return -rd_vector_cross(base, p, base, q);
 }
 
+/*
+ * Returns the vector dot product of a->b and c->d, which is proportional to the
+ * cosine of the angle between them.
+ */
 static int32_t rd_vector_dot(RDPoint* a, RDPoint* b, RDPoint* c, RDPoint* d)
 {
   return (b->x-a->x)*(d->x-c->x) + (b->y-a->y)*(d->y-c->y);
 }
 
+/*
+ * Returns the z-component magnitude of the vector cross product of a->b and
+ * c->d, which is proportional to the sine of the angle between them.
+ */
 static int32_t rd_vector_cross(RDPoint* a, RDPoint* b, RDPoint* c, RDPoint* d)
 {
   return (b->x-a->x)*(d->y-c->y) - (b->y-a->y)*(d->x-c->x);
 }
 
+/*
+ * Given a convex hull, determines the minimum-area rectangle that fits the
+ * hull. The main trick, proved by Freeman and Shapira in 1975, is that one edge
+ * of the rectangle must be collinear with one edge of the hull.
+ *
+ * The algorithm used here is described in "A Linear Time Algorithm for the
+ * Minimum Area Rectangle Enclosing a Convex Polygon" (Arnon and Gieselmann,
+ * 1983).
+ */
 static RDRectangle* rd_fit_rectangle(DArray* hull)
 {
   RDRectangle* rectangle = malloc(sizeof(RDRectangle));
@@ -326,9 +421,13 @@ static RDRectangle* rd_fit_rectangle(DArray* hull)
 
     while (base_idx < hull->len)
     {
+      /* consider one edge of the hull */
       left_base_point  = rd_hull_wrap_index(hull, base_idx);
       right_base_point = rd_hull_wrap_index(hull, base_idx+1);
 
+      /* find the point on the hull that is furthest to the left from the edge
+         (relative to the edge, which begins at the highest point and runs
+         clockwise). */
       while (rd_vector_dot(left_base_point,
                            right_base_point,
                            rd_hull_wrap_index(hull, leftmost_idx),
@@ -337,6 +436,8 @@ static RDRectangle* rd_fit_rectangle(DArray* hull)
         ++leftmost_idx;
       }
 
+      /* Find the point furthest from the edge in the perpendicular direction.
+        This will be at least equal to the leftmost point, generally past. */
       if(altitude_idx == 0) altitude_idx = leftmost_idx;
 
       while (rd_vector_cross(left_base_point,
@@ -347,6 +448,8 @@ static RDRectangle* rd_fit_rectangle(DArray* hull)
         ++altitude_idx;
       }
 
+      /* Find the point that is furthest to the right from the edge, relative to
+         the edge. */
       if(rightmost_idx == 0) rightmost_idx = altitude_idx;
 
       while (rd_vector_dot(left_base_point,
@@ -357,6 +460,13 @@ static RDRectangle* rd_fit_rectangle(DArray* hull)
         ++rightmost_idx;
       }
 
+      /* Determine the dimensions described by these points. If the edge is
+         vertical or horizontal, the scenario must be handled separately to
+         avoid division issues.
+
+         The +1's are needed, I think, to counter the fencepost issue between
+         discrete pixels and the true geometric distance. They are necessary to
+         to produce he correct answer, anyway. TODO. */
       if (left_base_point->x == right_base_point->x) {
         width  = abs(rd_hull_wrap_index(hull, rightmost_idx)->y - rd_hull_wrap_index(hull, leftmost_idx)->y)+1;
         height = abs(rd_hull_wrap_index(hull, altitude_idx)->x - left_base_point->x)+1;
@@ -374,11 +484,16 @@ static RDRectangle* rd_fit_rectangle(DArray* hull)
         int32_t dx = right_base_point->x - left_base_point->x,
                 dy = right_base_point->y - left_base_point->y;
 
+        /* determine the rectangle orientation */
         if (dx == 0) rectangle->orientation = M_PI_2;
         else         rectangle->orientation = atan((double) dy/dx);
 
+        /* this adjustment is made necessary by the fact that the sign of the
+           angle is lost during division, and consequently by atan() */
         if (dx < 0 || (dx == 0 && dy < 0)) rectangle->orientation += M_PI;
 
+        /* find two corner pixels along the base side of the rectangle, and use
+           them to determine the rectangle's center. */
         rd_determine_fourth_point(left_base_point, right_base_point, rd_hull_wrap_index(hull, leftmost_idx), &upper_left);
         rd_determine_fourth_point(left_base_point, right_base_point, rd_hull_wrap_index(hull, rightmost_idx), &upper_right);
         rectangle->cx = (uint16_t) (upper_left.x + upper_right.x - sin(rectangle->orientation)*height) / 2;
@@ -404,12 +519,20 @@ static RDPoint* rd_hull_wrap_index(DArray* hull, uint32_t index)
   return darray_index(hull, index % hull->len);
 }
 
+/*
+ * Returns the perpendicular distance between a line of slope slope through the
+ * point p and point q.
+ */
 static double rd_line_distance(RDPoint* p, RDPoint* q, double slope)
 {
-  // https://en.wikipedia.org/wiki/Distance_between_two_straight_lines
   return abs((p->y - slope*p->x) - (q->y - slope*q->x)) / sqrt(pow(slope, 2) + 1);
 }
 
+/*
+ * Given two points, p1 and p2, on the same line, and a third point, q1 that
+ * lies on another line perpendicular to the first, determines the intersection
+ * point of the lines, q2.
+ */
 static void rd_determine_fourth_point(RDPoint* p1, RDPoint* p2, RDPoint* q1, RDPoint* q2)
 {
   if (p1->x == p2->x) {

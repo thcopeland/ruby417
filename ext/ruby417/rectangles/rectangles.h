@@ -15,6 +15,10 @@ typedef struct {
 
 #define rd_matrix_read_fast(m, x, y) (m)->data[(x) + (y)*(m)->width]
 
+/*
+ * If the given coordinates are within the matrix limits, reduces to the value
+ * there. Otherwise, reduces to the fallback.
+ */
 #define rd_matrix_read_safe(m, x, y, fallback)                                  \
   (((x) >= 0 && (y) >= 0 && (x) < (m)->width && (y) < (m)->height) ?            \
       rd_matrix_read_fast(m, x, y)                                              \
