@@ -568,7 +568,7 @@ static VALUE detect_rectangles_wrapper(VALUE self, VALUE data, VALUE width, VALU
     rb_raise(rb_eEOFError, "image data and dimensions (%ix%i) do not align", c_width, c_height);
   }
 
-  return detect_rectangles((uint8_t*) StringValuePtr(data), c_width, c_height, FIX2INT(area_threshold), (uint8_t) FIX2INT(area_threshold));
+  return detect_rectangles((uint8_t*) StringValuePtr(data), c_width, c_height, FIX2INT(area_threshold), (uint8_t) FIX2INT(intensity_threshold));
 }
 
 static VALUE detect_rectangles(uint8_t* data, uint16_t width, uint16_t height, uint32_t area_threshold, uint8_t intensity_threshold)
