@@ -25,10 +25,7 @@ typedef struct {
     :                                                                           \
       (fallback))
 
-#define rd_matrix_set(m, x, y, val) do {                                        \
-  if ((x) >= 0 && (y) >= 0 && (x) < (m)->width && (y) < (m)->height)            \
-    (m)->data[(x)+(y)*(m)->width] = (val);                                      \
-  } while(0)
+#define rd_matrix_set(m, x, y, val) ((m)->data[(x)+(y)*(m)->width] = (val))
 
 #define rd_matrix_free(m) do {                                                  \
   if(m) {                                                                       \
@@ -60,7 +57,7 @@ typedef struct {
 static unsigned int rd_error = ALLWELL;
 
 static int uf_union(DArray*, uint32_t, uint32_t);
-static int64_t uf_find(DArray*, uint32_t);
+static int64_t uf_find(DArray*, int64_t);
 
 static RDMatrix* rd_matrix_new(uint16_t, uint16_t);
 static RDImage* rd_image_new(uint8_t*, uint16_t, uint16_t);

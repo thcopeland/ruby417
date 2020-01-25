@@ -24,7 +24,7 @@ static int uf_union(DArray* acc, uint32_t a, uint32_t b)
  * This implementation includes path compression for speed at little cost to
  * complexity.
  */
-static int64_t uf_find(DArray* acc, uint32_t site)
+static int64_t uf_find(DArray* acc, int64_t site)
 {
   if (site < 0 || site >= acc->len) {
     return -1;
@@ -114,7 +114,7 @@ static RDMatrix* rd_label_image_regions(RDImage* image)
   }
 
   /* Resolve label equivalencies by relabeling each pixel with the root label */
-  for (uint32_t z = 0; z < image->width*image->height; z++) {
+  for (uint32_t z = 0; z < (uint32_t) image->width*image->height; z++) {
     labels->data[z] = uf_find(label_eqvs, labels->data[z]);
   }
 
@@ -296,7 +296,7 @@ static void rd_extract_contour(DArray* boundary, RDMatrix* labels, uint16_t star
   const int RIGHT = 0, DOWN = 1, LEFT = 2, UP = 3;
 
   RDPoint* point;
-  uint32_t label, target_label = rd_matrix_read_fast(labels, start_x, start_y);
+  int32_t label, target_label = rd_matrix_read_fast(labels, start_x, start_y);
   int direction = DOWN;
   int32_t x = start_x, y = start_y;
 
