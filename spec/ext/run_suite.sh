@@ -10,7 +10,7 @@
 #     rectangles/
 #       rectangles.c
 #     ...
-# test/
+# spec/
 #   ext/
 #     fixtures/
 #     run_suite.sh
@@ -24,7 +24,7 @@ function error {
 
 base_dir="$(dirname $0)/../.."
 source_dir="$base_dir/ext/ruby417"
-test_dir="$base_dir/test/ext"
+test_dir="$base_dir/spec/ext"
 
 if [[ ! -e $source_dir/rectangles/rectangles.h ]]; then
   error "unable to find sources"

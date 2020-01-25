@@ -462,11 +462,10 @@ static RDRectangle* rd_fit_rectangle(DArray* hull)
 
       /* Determine the dimensions described by these points. If the edge is
          vertical or horizontal, the scenario must be handled separately to
-         avoid division issues.
+         avoid division by zero.
 
          The +1's are needed, I think, to counter the fencepost issue between
-         discrete pixels and the true geometric distance. They are necessary to
-         to produce he correct answer, anyway. TODO. */
+         discrete pixels and the true geometric distance. */
       if (left_base_point->x == right_base_point->x) {
         width  = abs(rd_hull_wrap_index(hull, rightmost_idx)->y - rd_hull_wrap_index(hull, leftmost_idx)->y)+1;
         height = abs(rd_hull_wrap_index(hull, altitude_idx)->x - left_base_point->x)+1;
@@ -598,10 +597,12 @@ static VALUE detect_rectangles(uint8_t* data, uint16_t width, uint16_t height, u
       RDRectangle* rect = rd_fit_rectangle(hull);
       if (rd_error != ALLWELL) goto upon_error;
 
-      VALUE rect_args[6] = { INT2FIX(rect->cx),    INT2FIX(rect->cy),
+      VALUE rect_args[8] = { INT2FIX(rect->cx),    INT2FIX(rect->cy),
                              INT2FIX(rect->width), INT2FIX(rect->height),
-                             rb_float_new(rect->orientation), INT2FIX(region->area)};
-      VALUE rb_rect = rb_class_new_instance(6, rect_args, cRectangle);
+                             rb_float_new(rect->orientation), INT2FIX(region->area),
+                             INT2FIX(region->cx),  INT2FIX(region->cy) };
+
+      VALUE rb_rect = rb_class_new_instance(8, rect_args, cRectangle);
 
       rb_ary_push(rect_data, rb_rect);
 
@@ -629,7 +630,9 @@ upon_error:
   }
 }
 
-static VALUE Rectangle_initialize(VALUE self, VALUE cx, VALUE cy, VALUE width, VALUE height, VALUE orientation, VALUE area)
+static VALUE Rectangle_initialize(VALUE self,  VALUE cx, VALUE cy,
+                                  VALUE width, VALUE height, VALUE orientation,
+                                  VALUE area,  VALUE region_cx, VALUE region_cy)
 {
   rb_iv_set(self, "@cx", cx);
   rb_iv_set(self, "@cy", cy);
@@ -637,7 +640,9 @@ static VALUE Rectangle_initialize(VALUE self, VALUE cx, VALUE cy, VALUE width, V
   rb_iv_set(self, "@height", height);
   rb_iv_set(self, "@orientation", orientation);
 
-  rb_iv_set(self, "@region_area", area);
+  rb_iv_set(self, "@true_area", area);
+  rb_iv_set(self, "@true_cx", region_cx);
+  rb_iv_set(self, "@true_cy", region_cy);
 
   return self;
 }
@@ -650,13 +655,15 @@ void Init_rectangle_detection(void)
 
   rb_define_module_function(mRectangleDetection, "process_image_data", detect_rectangles_wrapper, 5);
 
-  rb_define_method(cRectangle, "initialize", Rectangle_initialize, 6);
+  rb_define_method(cRectangle, "initialize", Rectangle_initialize, 8);
   rb_define_attr(cRectangle, "cx", 1, 0);
   rb_define_attr(cRectangle, "cy", 1, 0);
   rb_define_attr(cRectangle, "width", 1, 0);
   rb_define_attr(cRectangle, "height", 1, 0);
   rb_define_attr(cRectangle, "orientation", 1, 0);
-  rb_define_attr(cRectangle, "region_area", 1, 0);
+  rb_define_attr(cRectangle, "true_area", 1, 0);
+  rb_define_attr(cRectangle, "true_cx", 1, 0);
+  rb_define_attr(cRectangle, "true_cy", 1, 0);
 }
 
 #endif
