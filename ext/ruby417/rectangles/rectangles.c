@@ -480,26 +480,28 @@ static RDRectangle* rd_fit_rectangle(DArray* hull)
 
       if (width*height < min_area || min_area < 0) {
         RDPoint upper_left, upper_right;
-        int32_t dx = right_base_point->x - left_base_point->x,
-                dy = right_base_point->y - left_base_point->y;
-
-        /* determine the rectangle orientation */
-        if (dx == 0) rectangle->orientation = M_PI_2;
-        else         rectangle->orientation = atan((double) dy/dx);
-
-        /* this adjustment is made necessary by the fact that the sign of the
-           angle is lost during division, and consequently by atan() */
-        if (dx < 0 || (dx == 0 && dy < 0)) rectangle->orientation += M_PI;
+        double orientation = atan2(right_base_point->y - left_base_point->y,
+                                   right_base_point->x - left_base_point->x);
 
         /* find two corner pixels along the base side of the rectangle, and use
            them to determine the rectangle's center. */
         rd_determine_fourth_point(left_base_point, right_base_point, rd_hull_wrap_index(hull, leftmost_idx), &upper_left);
         rd_determine_fourth_point(left_base_point, right_base_point, rd_hull_wrap_index(hull, rightmost_idx), &upper_right);
-        rectangle->cx = (uint16_t) (upper_left.x + upper_right.x - sin(rectangle->orientation)*height) / 2;
-        rectangle->cy = (uint16_t) (upper_left.y + upper_right.y + cos(rectangle->orientation)*height) / 2;
+        rectangle->cx = (uint16_t) (upper_left.x + upper_right.x - sin(orientation)*height) / 2;
+        rectangle->cy = (uint16_t) (upper_left.y + upper_right.y + cos(orientation)*height) / 2;
 
-        rectangle->width = (uint16_t) width;
-        rectangle->height = (uint16_t) height;
+        /* Normalize the orientation to be between 0 and pi/2. This simplifies
+           comparing two resulting rectangles. */
+        if (orientation < 0) orientation += M_PI;
+        if (orientation < M_PI_2) {
+          rectangle->orientation = orientation;
+          rectangle->width = (uint16_t) width;
+          rectangle->height = (uint16_t) height;
+        } else {
+          rectangle->orientation = orientation - M_PI_2;
+          rectangle->width = (uint16_t) height;
+          rectangle->height = (uint16_t) width;
+        }
 
         min_area = width*height;
       }
@@ -539,10 +541,10 @@ static void rd_determine_fourth_point(RDPoint* p1, RDPoint* p2, RDPoint* q1, RDP
     q2->y = q1->y;
   } else {
     double slope = (double) (p2->y - p1->y) / (p2->x - p1->x);
-    double x = (double) (slope*(q1->y-p1->y) + q1->x + p1->x*pow(slope, 2)) / (pow(slope, 2) + 1);
+    double x = (slope*(q1->y-p1->y) + q1->x + p1->x*pow(slope, 2)) / (pow(slope, 2) + 1);
 
-    q2->x = (uint16_t) x;
-    q2->y = (uint16_t) (slope*(x - p1->x)) + p1->y;
+    q2->x = (uint16_t) round(x);
+    q2->y = (uint16_t) round(slope*(x - p1->x)) + p1->y;
   }
 }
 

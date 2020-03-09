@@ -76,8 +76,8 @@ static void test_rectangle_fitting(void)
 
   assert_rectangle(rect1, 140, 205, 161, 51, 0);
   assert_rectangle(rect2, 127, 128, 256, 256, 0);
-  assert_rectangle(rect3, 184, 106, 148, 96, -0.833);
-  assert_rectangle(rect4, 60, 61, 31, 61, M_PI_4);
+  assert_rectangle(rect3, 185, 107, 96, 148, 0.7378);
+  assert_rectangle(rect4, 60, 60, 31, 61, M_PI_4);
 
   free(rect1);
   free(rect2);
