@@ -464,6 +464,10 @@ static RDRectangle* rd_fit_rectangle(DArray* hull)
          vertical or horizontal, the scenario must be handled separately to
          avoid division by zero.
 
+         Note: For the resulting rectangle, the height dimension is the
+         dimension perpendicular to the orientation vector. Other code relies on
+         this (Localization::Guards#oriented_well?, for example).
+
          The +1's are needed, I think, to counter the fencepost issue between
          discrete pixels and the true geometric distance. */
       if (left_base_point->x == right_base_point->x) {
