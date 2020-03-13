@@ -19,8 +19,8 @@ RSpec.describe Guards do
       barcode = barcodes.first
 
       expect(barcodes).to be_one
-      expect(barcode.width).to be_within(10).of(609)
-      expect(barcode.height).to be_within(10).of(225)
+      expect(barcode.width).to be_within(3).of(609)
+      expect(barcode.height).to be_within(3).of(225)
     end
   end
 
@@ -28,7 +28,7 @@ RSpec.describe Guards do
     it "returns true for rectangle pairs that pass qualifications" do
       rect1 = Rectangle.new(0, 0, 17, 183, Math::PI/4, 3000, 0, 0)
       rect2 = Rectangle.new(400, 500, 17, 183, Math::PI/4, 3000, 0, 0)
-      rect3 = Rectangle.new(400, 500, 183, 17, Math::PI*3/4, 3000, 0, 0)
+      rect3 = Rectangle.new(400, 500, 20, 170, Math::PI*2/7, 2800, 0, 0)
 
       expect(scanner.guard_pair?(rect1, rect2, Math::PI/16)).to be true
       expect(scanner.guard_pair?(rect1, rect3, Math::PI/16)).to be true
@@ -40,21 +40,25 @@ RSpec.describe Guards do
       rect3 = Rectangle.new(400, 500, 17, 130, Math::PI/4, 3000, 0, 0)
       rect4 = Rectangle.new(100, 100, 17, 180, Math::PI/4, 3000, 0, 0)
 
-      expect(scanner.guard_pair?(rect1, rect2, Math::PI/4)).to be false
-      expect(scanner.guard_pair?(rect1, rect3, Math::PI/4)).to be false
-      expect(scanner.guard_pair?(rect1, rect4, Math::PI/4)).to be false
+      expect(scanner.guard_pair?(rect1, rect2, Math::PI/16)).to be false
+      expect(scanner.guard_pair?(rect1, rect3, Math::PI/16)).to be false
+      expect(scanner.guard_pair?(rect1, rect4, Math::PI/16)).to be false
     end
   end
 
   describe "#similar_dimensions?" do
     it "returns true for similar rectangle dimensions" do
-      expect(scanner.similar_dimensions?(10, 14, 170, 173)).to be true
-      expect(scanner.similar_dimensions?(10, 14, 30, 32)).to be true
+      rect1 = Rectangle.new(0, 0, 10, 170, Math::PI, 0, 0, 0)
+      rect2 = Rectangle.new(0, 0, 14, 173, Math::PI, 0, 0, 0)
+
+      expect(scanner.similar_dimensions?(rect1, rect2)).to be true
     end
 
     it "returns false for dissimilar rectangle dimensions" do
-      expect(scanner.similar_dimensions?(10, 30, 170, 173)).to be false
-      expect(scanner.similar_dimensions?(10, 14, 30, 20)).to be false
+      rect1 = Rectangle.new(0, 0, 10, 170, Math::PI, 0, 0, 0)
+      rect2 = Rectangle.new(0, 0, 30, 173, Math::PI, 0, 0, 0)
+
+      expect(scanner.similar_dimensions?(rect1, rect2)).to be false
     end
   end
 
@@ -67,22 +71,15 @@ RSpec.describe Guards do
       expect(scanner.oriented_well?(rect2, rect1, Math::PI/16)).to be true
     end
 
-    it "returns true for edge guards that are oriented ok but not standard" do
-      rect1 = Rectangle.new(0, 0, 17, 183, Math::PI/4, 3000, 0, 0)
-      rect2 = Rectangle.new(400, 500, 183, 17, Math::PI*3/4, 3000, 0, 0)
-
-      expect(scanner.oriented_well?(rect1, rect2, Math::PI/16)).to be true
-      expect(scanner.oriented_well?(rect2, rect1, Math::PI/16)).to be true
-    end
-
-
     it "returns false for poorly oriented edge guards" do
       rect1 = Rectangle.new(0, 0, 17, 183, Math::PI/4, 3000, 0, 0)
       rect2 = Rectangle.new(400, 650, 17, 183, Math::PI/4, 3000, 0, 0)
       rect3 = Rectangle.new(400, 400, 17, 183, Math::PI/3, 3000, 0, 0)
+      rect4 = Rectangle.new(400, 500, 17, 183, Math::PI/2, 3000, 0, 0)
 
       expect(scanner.oriented_well?(rect1, rect2, Math::PI/16)).to be false
       expect(scanner.oriented_well?(rect3, rect1, Math::PI/16)).to be false
+      expect(scanner.oriented_well?(rect1, rect4, Math::PI/16)).to be false
     end
   end
 
@@ -113,8 +110,8 @@ RSpec.describe Guards do
     end
 
     it "returns false for unlikely edge guards" do
-      rect1 = Rectangle.new(0, 0, 18,  17, Math::PI, 300, 0, 0) # bad width-height ratio
-      rect2 = Rectangle.new(0, 0, 183, 17, Math::PI, 300, 0, 0) # bad area
+      rect1 = Rectangle.new(0, 0, 17, 18,  Math::PI, 300, 0, 0) # bad width-height ratio
+      rect2 = Rectangle.new(0, 0, 17, 183, Math::PI, 300, 0, 0) # bad area
 
       expect(scanner.matches_well?(rect1, 0.9, 1)).to be true
       expect(scanner.matches_well?(rect1, 0.9, 3)).to be false

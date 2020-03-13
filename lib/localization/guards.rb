@@ -30,6 +30,7 @@ module Ruby417
         image = MiniMagick::Image.open(path)
 
         rectangles = RectangleDetection.process_image_data(preprocess_image(path), image.width, image.height, settings[:area_threshold], 128)
+        rectangles.each(&:normalize!) # see tools/rectangle_detection.rb
 
         filtered = process_matches(rectangles, settings[:fitting_threshold], settings[:guard_aspect])
 
@@ -68,8 +69,8 @@ module Ruby417
         orientation = Math.atan2(g2.cy - g1.cy, g2.cx - g1.cx)
 
         # determine the dimensions of the rectangle
-        bounds_width  = Math.hypot(g1.cy-g2.cy, g1.cx-g2.cx) + [g1.width, g1.height].min
-        bounds_height = [g1.height, g1.width, g2.height, g2.width].max
+        bounds_width  = Math.hypot(g1.cy-g2.cy, g1.cx-g2.cx) + g1.width
+        bounds_height = [g1.height, g2.height].max
 
         dx, dh = bounds_width/2, bounds_height/2
 
@@ -115,37 +116,27 @@ module Ruby417
 
       # Calculate a measure of an edge guard pair's likelihood of being legitimate
       def score_guard_pair(g1, g2)
-        rectangularity_score = g1.true_area/(g1.width*g1.height).to_f *
-                               g2.true_area/(g2.width*g2.height).to_f
-
+        rectangularity_score = g1.true_area/(g1.width*g1.height).to_f * g2.true_area/(g2.width*g2.height).to_f
         area_score = g1.true_area + g2.true_area
+        guard_aspect_score = g1.height / g1.width.to_f
+        barcode_aspect_score = Math.hypot(g1.cy-g2.cy, g1.cx-g2.cx)/g1.height
+        orientation_score = Math.sin(g1.orientation - g2.orientation).abs
 
-        guard_aspect_score = [g1.width/g1.height, g1.height/g1.width].max
-
-        barcode_aspect_score = Math.hypot(g1.cy-g2.cy, g1.cx-g2.cx)/[g1.width, g1.height].max
-
-        orientation_score = (normalized_orientation(g1) - normalized_orientation(g2)).abs
-
-        Math.sqrt(area_score)*(1 - orientation_score/Math::PI/2)*rectangularity_score + 8*guard_aspect_score - 2*barcode_aspect_score
+        Math.sqrt(area_score) * (1-orientation_score) * rectangularity_score + 4*guard_aspect_score - 2*barcode_aspect_score
       end
 
       # Determine whether the given rectangles form an edge guard pair
       def guard_pair?(a, b, angle_variation)
-        if (a.orientation - b.orientation).abs < angle_variation
-          similar_dimensions?(a.width, b.width, a.height, b.height) &&
-            oriented_well?(a, b, angle_variation) && positioned_well?(a, b)
-        elsif (a.orientation - b.orientation).abs - Math::PI/2 < angle_variation
-          similar_dimensions?(a.width, b.height, a.height, b.width) &&
-            oriented_well?(a, b, angle_variation) && positioned_well?(a, b)
-        end
+        within_angular_threshold?(a.orientation, b.orientation, angle_variation) &&
+          similar_dimensions?(a, b) && oriented_well?(a, b, angle_variation) && positioned_well?(a, b)
       end
 
       # Test the given dimensions for similarity
-      def similar_dimensions?(w1, w2, h1, h2)
-        width_threshold = [w1, w2, Math.sqrt(w1*h1) / 4].min
-        height_threshold = [h1, h2, Math.sqrt(w1*h1) / 4].min
+      def similar_dimensions?(a, b)
+        width_threshold = [a.width, b.width, Math.sqrt(a.width*a.height) / 4].min
+        height_threshold = [a.height, b.height, Math.sqrt(a.width*a.height) / 4].min
 
-        (w1 - w2).abs < width_threshold && (h1 - h2).abs < height_threshold
+        (a.width-b.width).abs < width_threshold && (a.height-b.height).abs < height_threshold
       end
 
       # Test whether two potential edge guards are oriented properly (the angle
@@ -153,17 +144,13 @@ module Ruby417
       def oriented_well?(a, b, threshold)
         relative_angle = (a.cx == b.cx ? Math::PI/2 : Math.atan((a.cy-b.cy)/(a.cx-b.cx).to_f))
 
-        # note: sine is used as an approximation to the "distance to nearest
-        # multiple of pi" function
-        Math.sin(relative_angle - normalized_orientation(a)).abs < threshold &&
-          Math.sin(relative_angle - normalized_orientation(b)).abs < threshold
+        within_angular_threshold?(relative_angle, a.orientation, threshold) &&
+          within_angular_threshold?(relative_angle, b.orientation, threshold)
       end
 
       # Test whether two potential edge guards are sufficently far apart.
       def positioned_well?(a, b)
-        width, height = [a.width, a.height].minmax
-
-        Math.hypot(a.cx-b.cx, a.cy-b.cy).between?(1.5*height, 80*width)
+        Math.hypot(a.cx-b.cx, a.cy-b.cy).between?(1.5*a.height, 80*a.width)
       end
 
       # Drop poor guard matches and sort the survivors by area (a sorted array
@@ -178,25 +165,12 @@ module Ruby417
       # sufficiently high region-area to rectangle-area ratio) and if the
       # dimensions are appropriately different.
       def matches_well?(rect, threshold, aspect)
-        rect.true_area > threshold*rect.width*rect.height &&
-          (rect.width*aspect < rect.height || rect.height*aspect < rect.width)
+        rect.true_area > threshold*rect.width*rect.height && rect.width*aspect < rect.height
       end
 
-      # Rectangles detected by Ruby417::RectangleDetection are normalized to have
-      # an orientation between 0 and pi/2. One result of this is that rectangle
-      # A with an unnormalized orientation pi/2+0.1 is normalized to 0.1 with
-      # the width and height swapped, and rectangle B with unnormalized
-      # orientation pi/2-0.1 remains at pi/2-0.1 after normalization. Thus,
-      # although the orientations vary by only 0.2 radians, the orientations are
-      # totally different. This function performs a normalization that reverses
-      # the RectangleDetection one partially, so that the (renormalized)
-      # orientations may be compared.
-      def normalized_orientation(rect)
-        if rect.width > rect.height
-          rect.orientation + Math::PI/2
-        else
-          rect.orientation
-        end
+      # Test whether the angles are near each other or near opposite each other
+      def within_angular_threshold?(a1, a2, t)
+        Math.sin(a1 - a2).abs < t
       end
 
       # Perform preprocessing and get image pixel data.
