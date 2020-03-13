@@ -16,7 +16,7 @@ module Ruby417
       end
 
       def height
-        [upper_left.distance(upper_right), lower_left.distance(lower_right)].max
+        [upper_left.distance(lower_left), upper_right.distance(lower_right)].max
       end
     end
   end

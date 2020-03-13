@@ -1,12 +1,9 @@
 require "spec_helper"
 
-RSpec.describe RectangleDetection::Rectangle do
-  before(:all) do
-    # there's probably a better way to do this
-    Rectangle = RectangleDetection::Rectangle
-    Point = Tools::Geometry::Point
-  end
+include Tools::Geometry
+include RectangleDetection
 
+RSpec.describe Rectangle do
   describe "#corners" do
     it "calculates the corners of an axis-aligned rectangle" do
       rect = Rectangle.new(30, 30, 8, 8, 0.0, 0, 0, 0)

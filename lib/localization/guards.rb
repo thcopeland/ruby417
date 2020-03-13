@@ -1,11 +1,19 @@
 module Ruby417
   module Localization
+    # This method works by finding the PDF417 edge guards and using them to
+    # determine barcode position.
+    #
+    # It should do particularly well in images with many extraneous features
+    # such as text or objects.
+    #
+    # It will fail for truncated barcodes, which lack a right edge guard, or
+    # when the edge guards are badly damaged.
     class Guards
       include Tools::Geometry
 
       attr_reader :settings
 
-      def initialize(preprocessing: :full, area_threshold:, fitting_threshold:, guard_aspect:, angle_variation:, area_variation:)
+      def initialize(preprocessing:, area_threshold:, fitting_threshold:, guard_aspect:, angle_variation:, area_variation:)
         @settings = {
           preprocessing:     preprocessing,
           area_threshold:    area_threshold,
@@ -16,8 +24,10 @@ module Ruby417
         }
       end
 
+      # Locate the barcodes in the image at the given path.
       def run(path)
         image = MiniMagick::Image.open(path)
+
         rectangles = RectangleDetection.process_image_data(preprocess_image(path), image.width, image.height, settings[:area_threshold], 128)
 
         filtered = process_matches(rectangles, settings[:fitting_threshold], settings[:guard_aspect])
@@ -25,30 +35,45 @@ module Ruby417
         locate_barcodes(filtered, settings[:angle_variation], settings[:area_variation])
       end
 
+      # Determine which potential guards are valid and determine barcode locations
       def locate_barcodes(guards, angle_variation, area_variation)
-        [].tap do |barcodes|
-          guards.each_with_index do |guard, i|
-            j = i-1
+        # note: the guards array must be sorted by area
+        barcodes = []
+        guards.each_with_index do |guard, i|
+          j = i-1
 
-            while j >= 0 && (guard.true_area - guards[j].true_area) < guard.true_area*area_variation
-              if guard_pair?(guard, guards[j], angle_variation)
-                barcodes << determine_barcode_location(guard, guards[j])
-              end
-              j -= 1
+          while j >= 0 && (guard.true_area - guards[j].true_area) < guard.true_area*area_variation
+            if guard_pair?(guard, guards[j], angle_variation)
+              barcodes << determine_barcode_location(guard, guards[j])
             end
+            j -= 1
           end
         end
+
+        barcodes
       end
 
+      # Calculate the vertices of a quadrilateral that contains the barcode
+      # described by two edge guards.
       def determine_barcode_location(g1, g2)
+        # The technique used to determine the vertices below is to calculate the
+        # upper left, upper right, lower left, lower right corners of a rectangle
+        # that approximates the shape of the barcode. Then the upper left
+        # vertex of the barcode quad is the one farthest from the lower right
+        # corner of the rectangle, the upper right is farthest from the lower
+        # left, etc.
         center = Point.new((g1.cx+g2.cx)/2, (g1.cy+g2.cy)/2)
         orientation = Math.atan2(g2.cy - g1.cy, g2.cx - g1.cx)
 
+        # determine the dimensions of the rectangle
         bounds_width  = Math.hypot(g1.cy-g2.cy, g1.cx-g2.cx)
         bounds_height = [g1.height, g1.width, g2.height, g2.width].max
 
         dx, dh = bounds_width/2, bounds_height/2
 
+        # calculate the corners of the bounding rectangle. this is done in order
+        # that bounds_upper_left is actually the upper left corner in the image
+        # plane, etc.
         if orientation.abs <= Math::PI/4
           barcode_orientation = :horizontal
           bounds_upper_left  = Point.new(center.x-dx, center.y-dh).rotate(center, orientation)
@@ -77,6 +102,8 @@ module Ruby417
 
         corners = g1.corners + g2.corners
 
+        # identify the corners of the barcode. the furthest-from-opposite strategy
+        # is more robust than nearest-to-corresponding for narrow edge guards
         upper_left  = corners.max_by { |corner| corner.distance(bounds_lower_right) }
         upper_right = corners.max_by { |corner| corner.distance(bounds_lower_left) }
         lower_right = corners.max_by { |corner| corner.distance(bounds_upper_left) }
@@ -85,6 +112,7 @@ module Ruby417
         LocatedBarcode.new(barcode_orientation, upper_left, upper_right, lower_right, lower_left)
       end
 
+      # Determine whether the given rectangles form an edge guard pair
       def guard_pair?(a, b, angle_variation)
         if (a.orientation - b.orientation).abs < angle_variation
           similar_dimensions?(a.width, b.width, a.height, b.height) &&
@@ -95,15 +123,21 @@ module Ruby417
         end
       end
 
+      # Test the given dimensions for similarity
       def similar_dimensions?(w1, w2, h1, h2)
-        (w1 - w2).abs < [w1, w2].min/2 && (h1 - h2).abs < [h1, h2].min/2
+        width_threshold = [w1, w2, Math.sqrt(w1*h1) / 4].min
+        height_threshold = [h1, h2, Math.sqrt(w1*h1) / 4].min
+
+        (w1 - w2).abs < width_threshold && (h1 - h2).abs < height_threshold
       end
 
+      # Test whether two potential edge guards are oriented properly (the angle
+      # of the line between the guards perpendicular to the guards)
       def oriented_well?(a, b, threshold)
         relative_angle = (a.cx == b.cx ? Math::PI/2 : Math.atan((a.cy-b.cy)/(a.cx-b.cx).to_f))
 
-        # Note: sine is used as an approximation to the "distance from nearest
-        # multiple of pi" function (1-(1-2*x/PI).abs).abs
+        # note: sine is used as an approximation to the "distance to nearest
+        # multiple of pi" function
         if a.width > a.height
           Math.sin(relative_angle - (Math::PI/2 + a.orientation)).abs < threshold
         else
@@ -111,20 +145,30 @@ module Ruby417
         end
       end
 
+      # Test whether two potential edge guards are sufficently far apart.
       def positioned_well?(a, b)
-        Math.hypot(a.cx - b.cx, a.cy - b.cy).between?(2*[a.width, a.height].max, 70*[a.width, a.height].min)
+        width, height = [a.width, a.height].minmax
+
+        Math.hypot(a.cx-b.cx, a.cy-b.cy).between?(1.5*height, 80*width)
       end
 
+      # Drop poor guard matches and sort the survivors by area (a sorted array
+      # is necessary in #locate_barcodes)
       def process_matches(rectangles, rectangle_threshold, aspect)
         rectangles.select { |rect| matches_well?(rect, rectangle_threshold, aspect) }
                   .sort_by!(&:true_area)
       end
 
+      # Quick test to whether the rectangle is a good candidate for an edge
+      # guard. Returns true if the given rectangle is "rectangular" (has a
+      # sufficiently high region-area to rectangle-area ratio) and if the
+      # dimensions are appropriately different.
       def matches_well?(rect, threshold, aspect)
         rect.true_area > threshold*rect.width*rect.height &&
-          rect.width*aspect < rect.height || rect.height*aspect < rect.width
+          (rect.width*aspect < rect.height || rect.height*aspect < rect.width)
       end
 
+      # Perform preprocessing and get image pixel data.
       def preprocess_image(path)
         MiniMagick::Tool::Convert.new.yield_self do |convert|
           convert << path
