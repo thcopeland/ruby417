@@ -24,7 +24,8 @@ module Ruby417
         }
       end
 
-      # Locate the barcodes in the image at the given path.
+      # Locate the barcodes in the image at the given path, and sort them in
+      # order of descending score
       def run(path)
         image = MiniMagick::Image.open(path)
 
@@ -50,7 +51,8 @@ module Ruby417
           end
         end
 
-        barcodes
+        # sort by score descending
+        barcodes.sort { |a, b| b.score <=> a.score }
       end
 
       # Calculate the vertices of a quadrilateral that contains the barcode
@@ -66,7 +68,7 @@ module Ruby417
         orientation = Math.atan2(g2.cy - g1.cy, g2.cx - g1.cx)
 
         # determine the dimensions of the rectangle
-        bounds_width  = Math.hypot(g1.cy-g2.cy, g1.cx-g2.cx)
+        bounds_width  = Math.hypot(g1.cy-g2.cy, g1.cx-g2.cx) + [g1.width, g1.height].min
         bounds_height = [g1.height, g1.width, g2.height, g2.width].max
 
         dx, dh = bounds_width/2, bounds_height/2
@@ -102,14 +104,29 @@ module Ruby417
 
         corners = g1.corners + g2.corners
 
-        # identify the corners of the barcode. the furthest-from-opposite strategy
-        # is more robust than nearest-to-corresponding for narrow edge guards
-        upper_left  = corners.max_by { |corner| corner.distance(bounds_lower_right) }
-        upper_right = corners.max_by { |corner| corner.distance(bounds_lower_left) }
-        lower_right = corners.max_by { |corner| corner.distance(bounds_upper_left) }
-        lower_left  = corners.max_by { |corner| corner.distance(bounds_upper_right) }
+        # identify the corners of the barcode
+        upper_left  = corners.max_by { |corner| corner.distance(bounds_lower_right) - corner.distance(bounds_upper_left) }
+        upper_right = corners.max_by { |corner| corner.distance(bounds_lower_left) - corner.distance(bounds_upper_right) }
+        lower_right = corners.max_by { |corner| corner.distance(bounds_upper_left) - corner.distance(bounds_lower_right) }
+        lower_left  = corners.max_by { |corner| corner.distance(bounds_upper_right) - corner.distance(bounds_lower_left) }
 
-        LocatedBarcode.new(barcode_orientation, upper_left, upper_right, lower_right, lower_left)
+        LocatedBarcode.new(barcode_orientation, upper_left, upper_right, lower_right, lower_left, score_guard_pair(g1, g2))
+      end
+
+      # Calculate a measure of an edge guard pair's likelihood of being legitimate
+      def score_guard_pair(g1, g2)
+        rectangularity_score = g1.true_area/(g1.width*g1.height).to_f *
+                               g2.true_area/(g2.width*g2.height).to_f
+
+        area_score = g1.true_area + g2.true_area
+
+        guard_aspect_score = [g1.width/g1.height, g1.height/g1.width].max
+
+        barcode_aspect_score = Math.hypot(g1.cy-g2.cy, g1.cx-g2.cx)/[g1.width, g1.height].max
+
+        orientation_score = (normalized_orientation(g1) - normalized_orientation(g2)).abs
+
+        Math.sqrt(area_score)*(1 - orientation_score/Math::PI/2)*rectangularity_score + 8*guard_aspect_score - 2*barcode_aspect_score
       end
 
       # Determine whether the given rectangles form an edge guard pair
@@ -138,11 +155,8 @@ module Ruby417
 
         # note: sine is used as an approximation to the "distance to nearest
         # multiple of pi" function
-        if a.width > a.height
-          Math.sin(relative_angle - (Math::PI/2 + a.orientation)).abs < threshold
-        else
-          Math.sin(relative_angle - a.orientation).abs < threshold
-        end
+        Math.sin(relative_angle - normalized_orientation(a)).abs < threshold &&
+          Math.sin(relative_angle - normalized_orientation(b)).abs < threshold
       end
 
       # Test whether two potential edge guards are sufficently far apart.
@@ -166,6 +180,23 @@ module Ruby417
       def matches_well?(rect, threshold, aspect)
         rect.true_area > threshold*rect.width*rect.height &&
           (rect.width*aspect < rect.height || rect.height*aspect < rect.width)
+      end
+
+      # Rectangles detected by Ruby417::RectangleDetection are normalized to have
+      # an orientation between 0 and pi/2. One result of this is that rectangle
+      # A with an unnormalized orientation pi/2+0.1 is normalized to 0.1 with
+      # the width and height swapped, and rectangle B with unnormalized
+      # orientation pi/2-0.1 remains at pi/2-0.1 after normalization. Thus,
+      # although the orientations vary by only 0.2 radians, the orientations are
+      # totally different. This function performs a normalization that reverses
+      # the RectangleDetection one partially, so that the (renormalized)
+      # orientations may be compared.
+      def normalized_orientation(rect)
+        if rect.width > rect.height
+          rect.orientation + Math::PI/2
+        else
+          rect.orientation
+        end
       end
 
       # Perform preprocessing and get image pixel data.
