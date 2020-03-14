@@ -15,7 +15,6 @@ RSpec.describe Geometry do
 
     describe "#rotate" do
       it "should rotate the point about an axis" do
-        include Geometry
         expect(point.rotate(Point.new(6, 7), Math::PI/4)).to eq(Point.new(6, 7+4*Math.sqrt(2)))
       end
     end

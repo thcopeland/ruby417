@@ -11,6 +11,9 @@ module Ruby417
     class Guards
       include Tools::Geometry
 
+      PI_2 = Math::PI/2
+      PI_4 = Math::PI/4
+
       attr_reader :settings
 
       def initialize(preprocessing:, area_threshold:, fitting_threshold:, guard_aspect:, angle_variation:, area_variation:)
@@ -59,59 +62,35 @@ module Ruby417
       # Calculate the vertices of a quadrilateral that contains the barcode
       # described by two edge guards.
       def determine_barcode_location(g1, g2)
-        # The technique used to determine the vertices below is to calculate the
-        # upper left, upper right, lower left, lower right corners of a rectangle
-        # that approximates the shape of the barcode. Then the upper left
-        # vertex of the barcode quad is the one farthest from the lower right
-        # corner of the rectangle, the upper right is farthest from the lower
-        # left, etc.
+        # estimated features of the barcode
         center = Point.new((g1.cx+g2.cx)/2, (g1.cy+g2.cy)/2)
         orientation = Math.atan2(g2.cy - g1.cy, g2.cx - g1.cx)
 
-        # determine the dimensions of the rectangle
-        bounds_width  = Math.hypot(g1.cy-g2.cy, g1.cx-g2.cx) + g1.width
-        bounds_height = [g1.height, g2.height].max
+        # the angle needed to rotate the barcode to a 90-degree vertical or
+        # horizontal position
+        rotation = (orientation/PI_2).round*PI_2 - orientation
 
-        dx, dh = bounds_width/2, bounds_height/2
-
-        # calculate the corners of the bounding rectangle. this is done in order
-        # that bounds_upper_left is actually the upper left corner in the image
-        # plane, etc.
-        if orientation.abs <= Math::PI/4
+        if orientation.abs <= PI_4 || orientation.abs >= 3*PI_4
           barcode_orientation = :horizontal
-          bounds_upper_left  = Point.new(center.x-dx, center.y-dh).rotate(center, orientation)
-          bounds_upper_right = Point.new(center.x+dx, center.y-dh).rotate(center, orientation)
-          bounds_lower_right = Point.new(center.x+dx, center.y+dh).rotate(center, orientation)
-          bounds_lower_left  = Point.new(center.x-dx, center.y+dh).rotate(center, orientation)
-        elsif orientation.abs >= Math::PI*3/4
-          barcode_orientation = :horizontal
-          bounds_upper_left  = Point.new(center.x-dx, center.y-dh).rotate(center, orientation-Math::PI)
-          bounds_upper_right = Point.new(center.x+dx, center.y-dh).rotate(center, orientation-Math::PI)
-          bounds_lower_right = Point.new(center.x+dx, center.y+dh).rotate(center, orientation-Math::PI)
-          bounds_lower_left  = Point.new(center.x-dx, center.y+dh).rotate(center, orientation-Math::PI)
-        elsif orientation.positive?
-          barcode_orientation = :vertical
-          bounds_upper_left  = Point.new(center.x-dh, center.y-dx).rotate(center, orientation-Math::PI/2)
-          bounds_upper_right = Point.new(center.x+dh, center.y-dx).rotate(center, orientation-Math::PI/2)
-          bounds_lower_right = Point.new(center.x+dh, center.y+dx).rotate(center, orientation-Math::PI/2)
-          bounds_lower_left  = Point.new(center.x-dh, center.y+dx).rotate(center, orientation-Math::PI/2)
         else
           barcode_orientation = :vertical
-          bounds_upper_left  = Point.new(center.x-dh, center.y-dx).rotate(center, orientation+Math::PI/2)
-          bounds_upper_right = Point.new(center.x+dh, center.y-dx).rotate(center, orientation+Math::PI/2)
-          bounds_lower_right = Point.new(center.x+dh, center.y+dx).rotate(center, orientation+Math::PI/2)
-          bounds_lower_left  = Point.new(center.x-dh, center.y+dx).rotate(center, orientation+Math::PI/2)
         end
 
-        corners = g1.corners + g2.corners
+        # rotate the corners of the guards about the center of the barcode so
+        # that the virtual barcode is vertical or horizontal
+        rotated_corners = (g1.corners + g2.corners).map { |corner| corner.rotate(center, rotation) }
 
-        # identify the corners of the barcode
-        upper_left  = corners.max_by { |corner| corner.distance(bounds_lower_right) - corner.distance(bounds_upper_left) }
-        upper_right = corners.max_by { |corner| corner.distance(bounds_lower_left) - corner.distance(bounds_upper_right) }
-        lower_right = corners.max_by { |corner| corner.distance(bounds_upper_left) - corner.distance(bounds_lower_right) }
-        lower_left  = corners.max_by { |corner| corner.distance(bounds_upper_right) - corner.distance(bounds_lower_left) }
+        upper_left  = rotated_corners.min_by { |p| p.x + p.y }
+        upper_right = rotated_corners.max_by { |p| p.x - p.y }
+        lower_right = rotated_corners.max_by { |p| p.x + p.y }
+        lower_left  = rotated_corners.max_by { |p| p.y - p.x }
 
-        LocatedBarcode.new(barcode_orientation, upper_left, upper_right, lower_right, lower_left, score_guard_pair(g1, g2))
+        # #rotate() restores the corners to their original locations
+        LocatedBarcode.new(barcode_orientation, score_guard_pair(g1, g2),
+                                                upper_left.rotate(center,  -rotation),
+                                                upper_right.rotate(center, -rotation),
+                                                lower_right.rotate(center, -rotation),
+                                                lower_left.rotate(center,  -rotation))
       end
 
       # Calculate a measure of an edge guard pair's likelihood of being legitimate
@@ -142,7 +121,7 @@ module Ruby417
       # Test whether two potential edge guards are oriented properly (the angle
       # of the line between the guards perpendicular to the guards)
       def oriented_well?(a, b, threshold)
-        relative_angle = (a.cx == b.cx ? Math::PI/2 : Math.atan((a.cy-b.cy)/(a.cx-b.cx).to_f))
+        relative_angle = (a.cx == b.cx ? PI_2 : Math.atan((a.cy-b.cy)/(a.cx-b.cx).to_f))
 
         within_angular_threshold?(relative_angle, a.orientation, threshold) &&
           within_angular_threshold?(relative_angle, b.orientation, threshold)

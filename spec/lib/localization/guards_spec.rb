@@ -21,6 +21,51 @@ RSpec.describe Guards do
       expect(barcodes).to be_one
       expect(barcode.width).to be_within(3).of(609)
       expect(barcode.height).to be_within(3).of(225)
+      expect(barcode.orientation).to eq(:horizontal)
+    end
+  end
+
+  describe "#determine_barcode_location" do
+    it "works for horizontal orientations" do
+      rect1 = Rectangle.new(0, 0, 17, 183, Math::PI/6, 3000, 0, 0)
+      rect2 = Rectangle.new(400, 300, 17, 183, Math::PI/6, 3000, 0, 0)
+      barcode = scanner.determine_barcode_location(rect1, rect2)
+
+      expect(barcode.orientation).to eq(:horizontal)
+      expect(barcode.upper_left).to  eq(rect1.corners.min_by { |c| c.x + c.y })
+      expect(barcode.lower_left).to  eq(rect1.corners.min_by { |c| c.x - c.y })
+      expect(barcode.upper_right).to eq(rect2.corners.max_by { |c| c.x - c.y })
+      expect(barcode.lower_right).to eq(rect2.corners.max_by { |c| c.x + c.y })
+
+      backwards = scanner.determine_barcode_location(rect2, rect1)
+      expect(backwards.upper_left).to  eq(barcode.upper_left)
+      expect(backwards.lower_left).to  eq(barcode.lower_left)
+      expect(backwards.upper_right).to eq(barcode.upper_right)
+      expect(backwards.lower_right).to eq(barcode.lower_right)
+    end
+
+    it "works for vertical orientations" do
+      rect1 = Rectangle.new(380, 100, 17, 183, Math::PI*2/5, 3000, 0, 0)
+      rect2 = Rectangle.new(600, 800, 17, 183, Math::PI*2/5, 3000, 0, 0)
+      barcode = scanner.determine_barcode_location(rect1, rect2)
+
+      expect(barcode.orientation).to eq(:vertical)
+      expect(barcode.upper_left).to  eq(rect1.corners.min_by { |c| c.x + c.y })
+      expect(barcode.lower_left).to  eq(rect2.corners.min_by { |c| c.x - c.y })
+      expect(barcode.upper_right).to eq(rect1.corners.max_by { |c| c.x - c.y })
+      expect(barcode.lower_right).to eq(rect2.corners.max_by { |c| c.x + c.y })
+    end
+
+    it "handles edge cases" do
+      rect1 = Rectangle.new(200, 200, 17, 183, Math::PI/4-0.1, 3000, 0, 0)
+      rect2 = Rectangle.new(599, 600, 17, 183, Math::PI/4+0.1, 3000, 0, 0)
+      barcode = scanner.determine_barcode_location(rect1, rect2)
+
+      expect(barcode.orientation).to eq(:vertical)
+      expect(barcode.upper_left).to  eq(rect1.corners.max_by { |c| c.y - c.x })
+      expect(barcode.lower_left).to  eq(rect2.corners.max_by { |c| c.y - c.x })
+      expect(barcode.upper_right).to eq(rect1.corners.min_by { |c| c.x + c.y })
+      expect(barcode.lower_right).to eq(rect2.corners.max_by { |c| c.x + c.y })
     end
   end
 
