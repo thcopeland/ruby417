@@ -52,10 +52,6 @@ typedef struct {
 #define INT2PTR(int) ((void*) (long) (int))
 #define PTR2INT(ptr) ((long) (ptr))
 
-#define ALLWELL 0
-#define RDNOMEM 12
-static unsigned int rd_error = ALLWELL;
-
 static int uf_union(DArray*, uint32_t, uint32_t);
 static int64_t uf_find(DArray*, int64_t);
 
@@ -70,9 +66,9 @@ static void rd_region_free(RDRegion*);
 static RDPoint* rd_point_new(uint16_t, uint16_t);
 
 static DArray* rd_extract_regions(RDImage*, uint8_t);
-static void rd_extract_contour(DArray*, RDMatrix*, uint16_t, uint16_t);
+static int rd_extract_contour(DArray*, RDMatrix*, uint16_t, uint16_t);
 
-static DArray* rd_convex_hull(DArray*);
+static DArray* rd_convex_hull(DArray*, int*);
 static int rd_graham_cmp(RDPoint*, RDPoint*, RDPoint*);
 static int32_t rd_vector_dot(RDPoint*, RDPoint*, RDPoint*, RDPoint*);
 static int32_t rd_vector_cross(RDPoint*, RDPoint*, RDPoint*, RDPoint*);

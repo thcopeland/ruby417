@@ -11,9 +11,11 @@ static void test_convex_hull(void)
   RDRegion* r1 = darray_index(regions, 0),
           * r2 = darray_index(regions, 1);
 
-  DArray* hull1 = rd_convex_hull(r1->boundary),
-        * hull2 = rd_convex_hull(r2->boundary);
+  int e = 0;
+  DArray* hull1 = rd_convex_hull(r1->boundary, &e),
+        * hull2 = rd_convex_hull(r2->boundary, &e);
 
+  g_assert_cmpint(e, ==, 0);
   g_assert_cmpint(hull1->len, ==, 5);
   assert_point_xy(darray_index(hull1, 0), 15, 20);
   assert_point_xy(darray_index(hull1, 1), 216, 20);
@@ -38,7 +40,7 @@ static void test_convex_hull(void)
   darray_push(too_small, &p);
   darray_push(too_small, &q);
 
-  g_assert_null(rd_convex_hull(too_small));
+  g_assert_null(rd_convex_hull(too_small, &e));
 
   darray_free(too_small, NULL);
 }
@@ -64,10 +66,11 @@ static void test_rectangle_fitting(void)
           * r3 = darray_index(regions, 2),
           * r4 = darray_index(regions, 3);
 
-  DArray* hull1 = rd_convex_hull(r1->boundary),
-        * hull2 = rd_convex_hull(r2->boundary),
-        * hull3 = rd_convex_hull(r3->boundary),
-        * hull4 = rd_convex_hull(r4->boundary);
+  int e = 0;
+  DArray* hull1 = rd_convex_hull(r1->boundary, &e),
+        * hull2 = rd_convex_hull(r2->boundary, &e),
+        * hull3 = rd_convex_hull(r3->boundary, &e),
+        * hull4 = rd_convex_hull(r4->boundary, &e);
 
   RDRectangle* rect1 = rd_fit_rectangle(hull1),
              * rect2 = rd_fit_rectangle(hull2),
@@ -96,22 +99,22 @@ static void test_rectangle_fitting(void)
 
 static int rectangle_runthrough(RDImage* image)
 {
-  rd_error = ALLWELL;
-
   DArray* regions = rd_extract_regions(image, 0);
-  if (rd_error != ALLWELL) return 0;
+  if (!regions) return 0;
 
   RDRegion* region = darray_index(regions, 1);
-  DArray* hull = rd_convex_hull(region->boundary);
 
-  if (rd_error != ALLWELL) {
+  int error = 0;
+  DArray* hull = rd_convex_hull(region->boundary, &error);
+
+  if (error != 0) {
     darray_free(regions, (DArrayFreeFunc) rd_region_free);
     return 0;
   }
 
   RDRectangle* rect = rd_fit_rectangle(hull);
 
-  if (rd_error != ALLWELL) {
+  if (!rect) {
     darray_free(regions, (DArrayFreeFunc) rd_region_free);
     darray_free(hull, NULL);
     return 0;

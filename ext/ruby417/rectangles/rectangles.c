@@ -1,7 +1,7 @@
 #include "rectangles.h"
 
 /*
- * Records a connection (or, in this case, an equivilance) between two "sites,"
+ * Records a connection (or, in this case, an equivalance) between two "sites,"
  * represented as integers. If the accumulator isn't large enough already, it
  * expands to fit the largest site.
  */
@@ -92,7 +92,7 @@ static RDMatrix* rd_label_image_regions(RDImage* image)
 {
   RDMatrix* labels = rd_matrix_new(image->width, image->height);
   DArray* label_eqvs = darray_new(128);
-  if (!labels || !label_eqvs) goto nomem;
+  if (!labels || !label_eqvs) goto abort;
 
   uint32_t x, y, pixel_label, current_label = 1;
   for (y = 0; y < image->height; y++) {
@@ -105,7 +105,7 @@ static RDMatrix* rd_label_image_regions(RDImage* image)
         rd_matrix_set(labels, x, y, current_label);
         /* expand the accumulator */
         if (!uf_union(label_eqvs, current_label, current_label)) {
-          goto nomem;
+          goto abort;
         }
 
         current_label++;
@@ -121,10 +121,8 @@ static RDMatrix* rd_label_image_regions(RDImage* image)
   darray_free(label_eqvs, NULL);
   return labels;
 
-nomem:
-  /* if a memory allocation fails, set the error, free as much as possible, and
-   * exit with NULL. */
-  rd_error = RDNOMEM;
+abort:
+  /* if memory allocation fails, free as much as possible and exit with NULL */
   darray_free(label_eqvs, NULL);
   rd_matrix_free(labels);
   return NULL;
@@ -217,7 +215,7 @@ static DArray* rd_extract_regions(RDImage* image, uint8_t intensity_threshold)
 {
   DArray* regions = darray_new(16);
   RDMatrix* labels = rd_label_image_regions(image);
-  if (!labels || !regions) goto nomem;
+  if (!labels || !regions) goto abort;
 
   uint16_t x, y;
   uint32_t label;
@@ -234,20 +232,20 @@ static DArray* rd_extract_regions(RDImage* image, uint8_t intensity_threshold)
 
           while(regions->len <= label) {
             /* resizing the dynamic array may fail */
-            if(!darray_push(regions, NULL)) goto nomem;
+            if(!darray_push(regions, NULL)) goto abort;
           }
 
           region = rd_region_new();
 
           if (region) {
-            rd_extract_contour(region->boundary, labels, x, y);
+            int status = rd_extract_contour(region->boundary, labels, x, y);
 
             /* populating the boundary array may fail */
-            if (rd_error != ALLWELL) goto abort;
+            if (status != 1) goto abort;
 
             darray_index_set(regions, label, region);
           } else {
-            goto nomem;
+            goto abort;
           }
         }
 
@@ -276,9 +274,6 @@ static DArray* rd_extract_regions(RDImage* image, uint8_t intensity_threshold)
   rd_matrix_free(labels);
   return regions;
 
-nomem:
-  rd_error = RDNOMEM;
-
 abort:
   rd_matrix_free(labels);
   darray_free(regions, (DArrayFreeFunc) rd_region_free);
@@ -291,11 +286,11 @@ abort:
  * algorithm is simple and fast, but it only works reliably for 4-connected
  * components.
  */
-static void rd_extract_contour(DArray* boundary, RDMatrix* labels, uint16_t start_x, uint16_t start_y)
+static int rd_extract_contour(DArray* boundary, RDMatrix* labels, uint16_t start_x, uint16_t start_y)
 {
   const int RIGHT = 0, DOWN = 1, LEFT = 2, UP = 3;
 
-  RDPoint* point;
+  RDPoint* point = NULL;
   int32_t label, target_label = rd_matrix_read_fast(labels, start_x, start_y);
   int direction = DOWN;
   int32_t x = start_x, y = start_y;
@@ -305,12 +300,11 @@ static void rd_extract_contour(DArray* boundary, RDMatrix* labels, uint16_t star
       label = rd_matrix_read_safe(labels, x, y, ~target_label);
 
       if (label == target_label) {
-        if (boundary->len == 0 || x != point->x || y != point->y) {
+        if (!point || x != point->x || y != point->y) {
           point = rd_point_new(x, y);
 
           if (!point || !darray_push(boundary, point)) {
-            rd_error = RDNOMEM;
-            return;
+            return 0; /* error */
           }
         }
 
@@ -325,17 +319,23 @@ static void rd_extract_contour(DArray* boundary, RDMatrix* labels, uint16_t star
       else if (direction == UP)    y--;
     }
   while (x != start_x || y != start_y);
+
+  return 1;
 }
 
 /*
  * Implements the Graham Scan technique to find the convex hull of the given
  * region boundary.
+ *
+ * The error flag is set to 1 if an allocation failed. For an invalid input
+ * (input array too small), the error is not set and NULL is returned.
+ *
  * Note: The resulting DArray is populated by pointers to RDPoints that are also
  * pointed to by the boundary DArray. Use rd_region_free() to free the region
  * and the memory pointed at by the boundary array, and darray_free(_, NULL) to
- * free the hull array in order to avoid double-free's.
+ * free the hull array in order to avoid double-free'ing memory.
  */
-static DArray* rd_convex_hull(DArray* boundary)
+static DArray* rd_convex_hull(DArray* boundary, int* error)
 {
   if(boundary->len < 3) return NULL;
 
@@ -369,7 +369,7 @@ static DArray* rd_convex_hull(DArray* boundary)
 
 nomem:
 
-  rd_error = RDNOMEM;
+  *error = 1;
   darray_free(hull, NULL);
   return NULL;
 }
@@ -465,8 +465,8 @@ static RDRectangle* rd_fit_rectangle(DArray* hull)
          avoid division by zero.
 
          Note: For the resulting rectangle, the height dimension is the
-         dimension perpendicular to the orientation vector. Other code relies on
-         this (Localization::Guards#oriented_well?, for example).
+         dimension perpendicular to the orientation vector.
+         RectangleDetection::Rectangle#normalize! relies on this.
 
          The +1's are needed, I think, to counter the fencepost issue between
          discrete pixels and the true geometric distance. */
@@ -512,8 +512,6 @@ static RDRectangle* rd_fit_rectangle(DArray* hull)
 
       ++base_idx;
     }
-  } else {
-    rd_error = RDNOMEM;
   }
 
   return rectangle;
@@ -578,42 +576,43 @@ static VALUE detect_rectangles_wrapper(VALUE self, VALUE data, VALUE width, VALU
 
 static VALUE detect_rectangles(uint8_t* data, uint16_t width, uint16_t height, uint32_t area_threshold, uint8_t intensity_threshold)
 {
-  /* reset error code */
-  rd_error = ALLWELL;
-
   VALUE rect_data = rb_ary_new();
   RDImage* image = NULL;
   DArray* regions = NULL,
-        * hull;
+        * hull = NULL;
   RDRegion* region;
 
   image = rd_image_new(data, width, height);
-  if(!image) rb_raise(rb_eNoMemError, "unable to allocate sufficient memory");
+  if(!image) goto nomem;
 
   regions = rd_extract_regions(image, intensity_threshold);
-  if (rd_error != ALLWELL) goto upon_error;
+  if (!regions) goto nomem;
 
   for (uint32_t r = 0; r < regions->len; r++) {
     region = darray_index(regions, r);
 
     if (region->area >= area_threshold && region->boundary->len >= 3) {
-      hull = rd_convex_hull(region->boundary);
-      if (rd_error != ALLWELL) goto upon_error;
+      int error = 0;
+      hull = rd_convex_hull(region->boundary, &error);
 
-      RDRectangle* rect = rd_fit_rectangle(hull);
-      if (rd_error != ALLWELL) goto upon_error;
+      if (error == 1) {
+        goto nomem;
+      } else if (hull != NULL) {
+        RDRectangle* rect = rd_fit_rectangle(hull);
+        if (!rect) goto nomem;
 
-      VALUE rect_args[8] = { INT2FIX(rect->cx),    INT2FIX(rect->cy),
-                             INT2FIX(rect->width), INT2FIX(rect->height),
-                             rb_float_new(rect->orientation), INT2FIX(region->area),
-                             INT2FIX(region->cx),  INT2FIX(region->cy) };
+        VALUE rect_args[8] = { INT2FIX(rect->cx),    INT2FIX(rect->cy),
+                               INT2FIX(rect->width), INT2FIX(rect->height),
+                               rb_float_new(rect->orientation), INT2FIX(region->area),
+                               INT2FIX(region->cx),  INT2FIX(region->cy) };
 
-      VALUE rb_rect = rb_class_new_instance(8, rect_args, cRectangle);
+        VALUE rb_rect = rb_class_new_instance(8, rect_args, cRectangle);
 
-      rb_ary_push(rect_data, rb_rect);
+        rb_ary_push(rect_data, rb_rect);
 
-      darray_free(hull, NULL);
-      free(rect);
+        darray_free(hull, NULL);
+        free(rect);
+      }
     }
   }
 
@@ -622,18 +621,13 @@ static VALUE detect_rectangles(uint8_t* data, uint16_t width, uint16_t height, u
 
   return rect_data;
 
-upon_error:
+nomem:
 
-  if (hull) darray_free(hull, NULL);
+  darray_free(hull, NULL);
   darray_free(regions, (DArrayFreeFunc) rd_region_free);
   free(image);
 
-  switch(rd_error) {
-    case RDNOMEM:
-      rb_raise(rb_eNoMemError, "unable to allocate sufficient memory");
-    default:
-      rb_raise(rb_eRuntimeError, "BUG: an unexpected error occurred within Ruby417 native extension (code %i)", rd_error);
-  }
+  rb_raise(rb_eNoMemError, "unable to allocate sufficient memory");
 }
 
 static VALUE Rectangle_initialize(VALUE self,  VALUE cx, VALUE cy,
