@@ -25,23 +25,12 @@ module Ruby417
     class Rectangle
       include Tools::Geometry
 
-      # Detected rectangles are normalized to have an orientation between 0 and
-      # pi/2. One result of this is that a rectangle with an unnormalized
-      # orientation pi/2+0.1 is normalized to 0.1 (with the width and height
-      # swapped), and a rectangle with unnormalized orientation pi/2-0.1 remains
-      # at pi/2-0.1 after normalization. Thus, although the orientations vary by
-      # only 0.2 radians, the orientations are totally different. This function
-      # performs a normalization that partially reverses the first one, so that
-      # the (renormalized) orientations may be compared more easily.
-      #
-      # There is another useful effect of renormalization. The width and height
-      # of detected rectangles have nothing to do with the vertical and
-      # horizontal image axis, instead, the width is the length of the side
-      # parallel to the local orientation axis. After renormalization, the width
-      # is the smaller side length, and height is the larger.
-      #
-      # These properties are used extensively in Localization::Guards.
+      # Normalize the rectangle's width, height, and orientation so that the
+      # width is less than the height. This makes comparing rectangles much
+      # simpler.
       def normalize!
+        # The rectangles detected by the native extension are normalized so that
+        # their orientations are between 0 and pi/2.
         if width > height
           @width, @height = height, width
           @orientation += Math::PI/2

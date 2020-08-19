@@ -1,4 +1,3 @@
-Add documentation
-Optimize Hough & Scanners
-Add specific errors for scanning failures, lines, etc
-Tests!
+* Localization::Hough - divide the image into many small regions and calculate
+  the Hough space for each region. Any region that has perpendicular lines may
+  be considered a potential barcode region. Could call Localization::Guards.

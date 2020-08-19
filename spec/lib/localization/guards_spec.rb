@@ -8,7 +8,8 @@ RSpec.describe Guards do
     Guards.new(preprocessing:     :full,
                area_threshold:    1000,
                fitting_threshold: 0.85,
-               guard_aspect:      5,
+               guard_aspect:      Range.new(3, 34),
+               barcode_aspect:    Range.new(1, 8),
                angle_variation:   Math::PI/16,
                area_variation:    0.35)
   end
@@ -75,8 +76,8 @@ RSpec.describe Guards do
       rect2 = Rectangle.new(400, 500, 17, 183, Math::PI/4, 3000, 0, 0)
       rect3 = Rectangle.new(400, 500, 20, 170, Math::PI*2/7, 2800, 0, 0)
 
-      expect(scanner.guard_pair?(rect1, rect2, Math::PI/16)).to be true
-      expect(scanner.guard_pair?(rect1, rect3, Math::PI/16)).to be true
+      expect(scanner.guard_pair?(rect1, rect2, Math::PI/16, 1..8)).to be true
+      expect(scanner.guard_pair?(rect1, rect3, Math::PI/16, 1..8)).to be true
     end
 
     it "returns false for bad rectangle pairs" do
@@ -85,9 +86,9 @@ RSpec.describe Guards do
       rect3 = Rectangle.new(400, 500, 17, 130, Math::PI/4, 3000, 0, 0)
       rect4 = Rectangle.new(100, 100, 17, 180, Math::PI/4, 3000, 0, 0)
 
-      expect(scanner.guard_pair?(rect1, rect2, Math::PI/16)).to be false
-      expect(scanner.guard_pair?(rect1, rect3, Math::PI/16)).to be false
-      expect(scanner.guard_pair?(rect1, rect4, Math::PI/16)).to be false
+      expect(scanner.guard_pair?(rect1, rect2, Math::PI/16, 1..8)).to be false
+      expect(scanner.guard_pair?(rect1, rect3, Math::PI/16, 1..8)).to be false
+      expect(scanner.guard_pair?(rect1, rect4, Math::PI/16, 1..8)).to be false
     end
   end
 
@@ -128,12 +129,12 @@ RSpec.describe Guards do
     end
   end
 
-  describe "#positioned_well?" do
+  describe "#sized_well?" do
     it "returns true if edge guards are spaced well" do
       rect1 = Rectangle.new(0, 0, 17, 183, Math::PI, 3000, 0, 0)
       rect2 = Rectangle.new(600, 0, 17, 183, Math::PI, 3000, 0, 0)
 
-      expect(scanner.positioned_well?(rect1, rect2)).to be true
+      expect(scanner.sized_well?(rect1, rect2, 1..8)).to be true
     end
 
     it "returns false for badly spaced edge guards" do
@@ -141,8 +142,8 @@ RSpec.describe Guards do
       rect2 = Rectangle.new(100, 0, 17, 183, Math::PI, 3000, 0, 0)
       rect3 = Rectangle.new(1500, 0, 17, 183, Math::PI, 3000, 0, 0)
 
-      expect(scanner.positioned_well?(rect1, rect2)).to be false
-      expect(scanner.positioned_well?(rect1, rect3)).to be false
+      expect(scanner.sized_well?(rect1, rect2, 1..8)).to be false
+      expect(scanner.sized_well?(rect1, rect3, 1..8)).to be false
     end
   end
 
@@ -150,17 +151,17 @@ RSpec.describe Guards do
     it "returns true for likely edge guards" do
       rect = Rectangle.new(0, 0, 17, 183, Math::PI, 3000, 0, 0)
 
-      expect(scanner.matches_well?(rect, 0.9, 3)).to be true
-      expect(scanner.matches_well?(rect, 0.95, 6)).to be true
+      expect(scanner.matches_well?(rect, 0.9, 3..30)).to be true
+      expect(scanner.matches_well?(rect, 0.95, 3..30)).to be true
     end
 
     it "returns false for unlikely edge guards" do
       rect1 = Rectangle.new(0, 0, 17, 18,  Math::PI, 300, 0, 0) # bad width-height ratio
       rect2 = Rectangle.new(0, 0, 17, 183, Math::PI, 300, 0, 0) # bad area
 
-      expect(scanner.matches_well?(rect1, 0.9, 1)).to be true
-      expect(scanner.matches_well?(rect1, 0.9, 3)).to be false
-      expect(scanner.matches_well?(rect2, 0.9, 1)).to be false
+      expect(scanner.matches_well?(rect1, 0.9, 1..30)).to be true
+      expect(scanner.matches_well?(rect1, 0.9, 3..30)).to be false
+      expect(scanner.matches_well?(rect2, 0.9, 1..30)).to be false
     end
   end
 end

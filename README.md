@@ -44,7 +44,8 @@ scanner =
     preprocessing:     :full,       # amount of preprocessing, one of :full, :basic, :half, :none
     area_threshold:    400,         # minimum area of edge guards, often as high as 2000
     fitting_threshold: 0.75,        # determines what qualifies as a rectangle; 1.0 = perfect, 0 = anything
-    guard_aspect:      3,           # the height-width min ratio for edge guard
+    guard_aspect:      3..30,       # the height-width ratio bounds for edge guards
+    barcode_aspect:    2..8,        # the bounds of the barcode aspect ratio
     angle_variation:   Math::PI/16, # the angle variation allowed between edge guards
     area_variation:    0.35)        # the area variation allowed between guards
 
@@ -66,6 +67,6 @@ $ ruby test_localization.rb IMAGE_PATH
 $ magick IMAGE_PATH -draw "$(ruby test_localization.rb IMAGE_PATH)" detected.jpg
 ```
 
-and open `detected.jpg` in an image viewer (as a test image, try using `spec/fixtures/sir_walter_scott_blurred_rotated.jpg`). The barcode should be outlined in a green quadrilateral. The entire detection process on a 1603x1202 image with a single barcode takes about half a second, most of which is spent in ImageMagick preprocessing the image.
+and open `detected.jpg` in an image viewer (as a test image, try using `spec/fixtures/sir_walter_scott_blurred_rotated.jpg`). The barcode should be outlined in a green quadrilateral. The entire detection process on a 1603x1202 image with a single barcode takes about half a second, most of which is spent in ImageMagick, preprocessing the image.
 
 Stay tuned!

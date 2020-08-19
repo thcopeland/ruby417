@@ -16,12 +16,13 @@ module Ruby417
 
       attr_reader :settings
 
-      def initialize(preprocessing:, area_threshold:, fitting_threshold:, guard_aspect:, angle_variation:, area_variation:)
+      def initialize(preprocessing:, area_threshold:, fitting_threshold:, guard_aspect:, barcode_aspect:, angle_variation:, area_variation:)
         @settings = {
           preprocessing:     preprocessing,
           area_threshold:    area_threshold,
           fitting_threshold: fitting_threshold,
           guard_aspect:      guard_aspect,
+          barcode_aspect:    barcode_aspect,
           angle_variation:   angle_variation,
           area_variation:    area_variation
         }
@@ -33,22 +34,22 @@ module Ruby417
         image = MiniMagick::Image.open(path)
 
         rectangles = RectangleDetection.process_image_data(preprocess_image(path), image.width, image.height, settings[:area_threshold], 128)
-        rectangles.each(&:normalize!) # see tools/rectangle_detection.rb
+        rectangles.each(&:normalize!)
 
         filtered = process_matches(rectangles, settings[:fitting_threshold], settings[:guard_aspect])
 
-        locate_barcodes(filtered, settings[:angle_variation], settings[:area_variation])
+        locate_barcodes(filtered, settings[:angle_variation], settings[:area_variation], settings[:barcode_aspect])
       end
 
       # Determine which potential guards are valid and determine barcode locations
-      def locate_barcodes(guards, angle_variation, area_variation)
+      def locate_barcodes(guards, angle_variation, area_variation, barcode_aspect_range)
         # note: the guards array must be sorted by area
         barcodes = []
         guards.each_with_index do |guard, i|
           j = i-1
 
           while j >= 0 && (guard.true_area - guards[j].true_area) < guard.true_area*area_variation
-            if guard_pair?(guard, guards[j], angle_variation)
+            if guard_pair?(guard, guards[j], angle_variation, barcode_aspect_range)
               barcodes << determine_barcode_location(guard, guards[j])
             end
             j -= 1
@@ -96,18 +97,22 @@ module Ruby417
       # Calculate a measure of an edge guard pair's likelihood of being legitimate
       def score_guard_pair(g1, g2)
         rectangularity_score = g1.true_area/(g1.width*g1.height).to_f * g2.true_area/(g2.width*g2.height).to_f
-        area_score = g1.true_area + g2.true_area
-        guard_aspect_score = g1.height / g1.width.to_f
-        barcode_aspect_score = Math.hypot(g1.cy-g2.cy, g1.cx-g2.cx)/g1.height
-        orientation_score = Math.sin(g1.orientation - g2.orientation).abs
+        min_area, max_area = [g1.true_area, g2.true_area].minmax
+        similarity_score = 1 - (15*max_area/16 - min_area).abs/max_area.to_f
+        area_score = Math.sqrt(min_area + max_area)
+        guard_aspect_score = (5 - g1.height / g1.width.to_f).abs
+        barcode_aspect_score = (3 - Math.hypot(g1.cy-g2.cy, g1.cx-g2.cx)/g1.height).abs
+        orientation_score = 1 - Math.sin(g1.orientation - g2.orientation).abs
 
-        Math.sqrt(area_score) * (1-orientation_score) * rectangularity_score + 4*guard_aspect_score - 2*barcode_aspect_score
+        area_score * orientation_score * rectangularity_score * similarity_score - guard_aspect_score - barcode_aspect_score
       end
 
       # Determine whether the given rectangles form an edge guard pair
-      def guard_pair?(a, b, angle_variation)
+      def guard_pair?(a, b, angle_variation, aspect_range)
         within_angular_threshold?(a.orientation, b.orientation, angle_variation) &&
-          similar_dimensions?(a, b) && oriented_well?(a, b, angle_variation) && positioned_well?(a, b)
+          similar_dimensions?(a, b) &&
+          sized_well?(a, b, aspect_range) &&
+          oriented_well?(a, b, angle_variation)
       end
 
       # Test the given dimensions for similarity
@@ -127,9 +132,12 @@ module Ruby417
           within_angular_threshold?(relative_angle, b.orientation, threshold)
       end
 
-      # Test whether two potential edge guards are sufficently far apart.
-      def positioned_well?(a, b)
-        Math.hypot(a.cx-b.cx, a.cy-b.cy).between?(1.5*a.height, 80*a.width)
+      # Test whether the barcode aspect is within the specified range
+      def sized_well?(a, b, aspect_range)
+        width = Math.hypot(a.cy-b.cy, a.cx-b.cx)
+        height = (a.height + b.height) / 2
+
+        aspect_range.cover?(width/height) && width.between?(a.width, a.width * 70)
       end
 
       # Drop poor guard matches and sort the survivors by area (a sorted array
@@ -143,8 +151,9 @@ module Ruby417
       # guard. Returns true if the given rectangle is "rectangular" (has a
       # sufficiently high region-area to rectangle-area ratio) and if the
       # dimensions are appropriately different.
-      def matches_well?(rect, threshold, aspect)
-        rect.true_area > threshold*rect.width*rect.height && rect.width*aspect < rect.height
+      def matches_well?(rect, threshold, guard_aspect_range)
+        rect.true_area > threshold*rect.width*rect.height &&
+          guard_aspect_range.cover?(rect.height/rect.width.to_f)
       end
 
       # Test whether the angles are near each other or near opposite each other
