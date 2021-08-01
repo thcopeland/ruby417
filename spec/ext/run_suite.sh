@@ -1,61 +1,35 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-# This script can be run from anywhere, but it assumes the following directory
-# structure:
-#
-# ext/
-#   ruby417/
-#     darray/
-#       darray.h
-#     rectangles/
-#       rectangles.c
-#     ...
-# spec/
-#   ext/
-#     fixtures/
-#     run_suite.sh
-#     ...
-#
-
-function error {
+error () {
   echo "$(basename $0): $1"
-  exit -1
+  exit 1
+}
+
+egcc () {
+  gcc $@
+
+  if [ $? -ne 0 ]; then
+    error "Compilation failed on $(basename $1)"
+  fi
 }
 
 base_dir="$(dirname $0)/../.."
 source_dir="$base_dir/ext/ruby417"
 test_dir="$base_dir/spec/ext"
 
-if [[ ! -e $source_dir/rectangles/rectangles.h ]]; then
-  error "unable to find sources"
-fi
+echo "Compiling sources..."
+egcc $source_dir/darray.c -g -Wall -Wextra -c -o $test_dir/darray.o
 
-if [[ ! -d $test_dir/fixtures ]]; then
-  error "unable to find fixtures"
-fi
-
-echo "Recompiling suite..."
-
-for file in $test_dir/test_*.c; do
-  gcc $file -I$source_dir                           \
-    `pkg-config --libs --cflags glib-2.0` -lm       \
-    -DNO_RUBY -o $test_dir/"exec_$(date +%s)_$(basename $file).out"
-
-  if [ $? -ne 0 ]; then
-    error "Compilation failed on $(basename $file)"
-  else
-    basename $file
-  fi
-done
+echo "Compiling suite..."
+egcc $test_dir/test_darray.c $test_dir/darray.o -g -lm -I$source_dir -o $test_dir/exec_test_darray
 
 echo "Running tests..."
-
 pushd $test_dir > /dev/null
-
-for file in exec_*.out; do
-  ./$file $@
+for file in exec_*; do
+  ./$file
   rm $file
 done
+rm *.o
 
 popd > /dev/null
 
