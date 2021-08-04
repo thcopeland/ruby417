@@ -5,9 +5,9 @@
 
 struct darray *darray_new_with_allocators(unsigned capacity,
                                           void (*eltfree)(void *elt),
-                                          void (*free)(void *ptr),
                                           void *(*malloc)(size_t size),
-                                          void *(*realloc)(void *ptr, size_t new_size)) {
+                                          void *(*realloc)(void *ptr, size_t new_size),
+                                          void (*free)(void *ptr)) {
   struct darray *ary = malloc(sizeof(struct darray));
 
   if (ary) {
@@ -29,7 +29,7 @@ struct darray *darray_new_with_allocators(unsigned capacity,
 }
 
 struct darray *darray_new(unsigned capacity, void (*eltfree)(void *elt)) {
-  return darray_new_with_allocators(capacity, eltfree, free, malloc, realloc);
+  return darray_new_with_allocators(capacity, eltfree, malloc, realloc, free);
 }
 
 struct darray *darray_dup(struct darray *ary) {

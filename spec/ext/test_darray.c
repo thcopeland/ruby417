@@ -34,7 +34,7 @@ void assert_mem_clean(void) {
 
 struct darray *new_test_array(unsigned length, ...) {
   struct darray *array;
-  while (!(array=darray_new_with_allocators(0, NULL, xfree, xmalloc, xrealloc)));
+  while (!(array=darray_new_with_allocators(0, NULL, xmalloc, xrealloc, xfree)));
 
   va_list argp;
   va_start(argp, length);
@@ -62,7 +62,7 @@ void test_darray_new_with_allocators(void) {
   fprintf(stderr, "Testing darray_new_with_allocators...");
 
   struct darray *ary;
-  while(!(ary=darray_new_with_allocators(5, NULL, xfree, xmalloc, xrealloc)));
+  while(!(ary=darray_new_with_allocators(5, NULL, xmalloc, xrealloc, xfree)));
   assert(ary->len == 0);
   assert(ary->capacity == 8);
   darray_free(ary);
@@ -90,7 +90,7 @@ void test_darray_free(void) {
   fprintf(stderr, "Testing darray_free...");
 
   struct darray *ary;
-  while(!(ary=darray_new_with_allocators(5, xfree, xfree, xmalloc, xrealloc)));
+  while(!(ary=darray_new_with_allocators(5, xfree, xmalloc, xrealloc, xfree)));
   for (int i = 0; i < 16; i++) {
     char *str;
     while(!(str=xmalloc(4)));
@@ -107,7 +107,7 @@ void test_darray_resize_if_necessary(void) {
   fprintf(stderr, "Testing darray_resize_if_necessary...");
 
   struct darray *ary;
-  while(!(ary=darray_new_with_allocators(0, NULL, xfree, xmalloc, xrealloc)));
+  while(!(ary=darray_new_with_allocators(0, NULL, xmalloc, xrealloc, xfree)));
   assert(ary->capacity == 2);
   while(!darray_resize_if_necessary(ary, 7));
   assert(ary->capacity == 8);
@@ -183,7 +183,7 @@ void test_darray_push(void) {
   fprintf(stderr, "Testing darray_push...");
 
   struct darray *ary;
-  while(!(ary=darray_new_with_allocators(0, NULL, xfree, xmalloc, xrealloc)));
+  while(!(ary=darray_new_with_allocators(0, NULL, xmalloc, xrealloc, xfree)));
   while(!darray_push(ary, (void*) 5l));
   while(!darray_push(ary, (void*) 6l));
   while(!darray_push(ary, (void*) 9l));
