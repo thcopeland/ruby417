@@ -1,38 +1,8 @@
 #include <stdarg.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <assert.h>
-#include <stdlib.h>
-#include <time.h>
-
+#include "spec_helper.h"
 #include "darray.h"
 
-static unsigned allocations = 0, frees = 0;
-
-void *xmalloc(size_t size) {
-  if (rand() % 2) return NULL;
-  allocations++;
-  void *p = malloc(size);
-  return p;
-}
-
-void *xrealloc(void *ptr, size_t size) {
-  if (rand() % 2) return NULL;
-  if (!ptr) allocations++;
-  void *p = realloc(ptr, size);
-  return p;
-}
-
-void xfree(void *ptr) {
-  frees++;
-  return free(ptr);
-}
-
-void assert_mem_clean(void) {
-  assert(allocations == frees);
-}
-
-struct darray *new_test_array(unsigned length, ...) {
+static struct darray *new_test_array(unsigned length, ...) {
   struct darray *array;
   while (!(array=darray_new_with_allocators(0, NULL, xmalloc, xrealloc, xfree)));
 
@@ -46,12 +16,12 @@ struct darray *new_test_array(unsigned length, ...) {
   return array;
 }
 
-void assert_darray_eq(struct darray *a, struct darray *b) {
+static void assert_darray_eq(struct darray *a, struct darray *b) {
   assert(a->len == b->len);
   for(int i = 0; i < a->len; i++) assert(darray_index(a, i) == darray_index(b, i));
 }
 
-void assert_darray_vals(struct darray *ary, ...) {
+static void assert_darray_vals(struct darray *ary, ...) {
   va_list argp;
   va_start(argp, ary);
   for(int i = 0; i < ary->len; i++) assert((long) darray_index(ary, i) == (long) va_arg(argp, int));
@@ -231,10 +201,6 @@ void test_darray_msort(void) {
 }
 
 int main(int argc, char** argv) {
-  int seed = time(0);
-  fprintf(stderr, "Randomized with seed %i\n", seed);
-  srand(seed);
-
   void (*(tests[]))(void) = {
     test_darray_new_with_allocators,
     test_darray_dup,
@@ -247,9 +213,5 @@ int main(int argc, char** argv) {
     test_darray_msort
   };
   int num = sizeof(tests) / sizeof(tests[0]);
-  while (num) {
-    int idx = rand() % num;
-    tests[idx]();
-    tests[idx] = tests[--num];
-  }
+  run_tests(num, tests);
 }

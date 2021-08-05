@@ -19,9 +19,11 @@ test_dir="$base_dir/spec/ext"
 
 echo "Compiling sources..."
 egcc $source_dir/darray.c -g -Wall -Wextra -c -o $test_dir/darray.o
+egcc $source_dir/image.c -g -Wall -Wextra -c -o $test_dir/image.o
 
 echo "Compiling suite..."
 egcc $test_dir/test_darray.c $test_dir/darray.o -g -lm -I$source_dir -o $test_dir/exec_test_darray
+egcc $test_dir/test_image.c $test_dir/image.o -g -lm -I$source_dir -o $test_dir/exec_test_image
 
 echo "Running tests..."
 pushd $test_dir > /dev/null
