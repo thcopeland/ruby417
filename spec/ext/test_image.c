@@ -1,11 +1,11 @@
 #include "spec_helper.h"
 #include "image.h"
 
-void test_image8_new_with_allocators(void) {
-  fprintf(stderr, "Testing image8_new_with_allocators...");
+void test_image8_new(void) {
+  fprintf(stderr, "Testing image8_new...");
 
   struct image8 *im;
-  while(!(im=image8_new_with_allocators(10, 20, xmalloc, xfree)));
+  while(!(im=image8_new(10, 20, xmalloc, xfree)));
   assert(im->width == 10);
   assert(im->height == 20);
   image8_free(im);
@@ -22,7 +22,7 @@ void test_image8_usage(void) {
   fprintf(stderr, "Testing image8 usage...");
 
   struct image8 *im;
-  while(!(im=image8_new_with_allocators(20, 20, calloc1, xfree)));
+  while(!(im=image8_new(20, 20, calloc1, xfree)));
   assert(image8_get(im, 0, 0) == 0);
   assert(image8_get(im, 19, 0) == 0);
   assert(image8_get(im, 16, 5) == 0);
@@ -42,11 +42,11 @@ void test_image8_usage(void) {
   fprintf(stderr, "PASS\n");
 }
 
-void test_image32_new_with_allocators(void) {
-  fprintf(stderr, "Testing image32_new_with_allocators...");
+void test_image32_new(void) {
+  fprintf(stderr, "Testing image32_new...");
 
   struct image32 *im;
-  while(!(im=image32_new_with_allocators(10, 20, xmalloc, xfree)));
+  while(!(im=image32_new(10, 20, xmalloc, xfree)));
   assert(im->width == 10);
   assert(im->height == 20);
   image32_free(im);
@@ -59,7 +59,7 @@ void test_image32_usage(void) {
   fprintf(stderr, "Testing image32 usage...");
 
   struct image32 *im;
-  while(!(im=image32_new_with_allocators(20, 20, calloc1, xfree)));
+  while(!(im=image32_new(20, 20, calloc1, xfree)));
   assert(image32_get(im, 0, 0) == 0);
   assert(image32_get(im, 19, 0) == 0);
   assert(image32_get(im, 16, 5) == 0);
@@ -81,9 +81,9 @@ void test_image32_usage(void) {
 
 int main(int argc, char** argv) {
   void (*(tests[]))(void) = {
-    test_image8_new_with_allocators,
+    test_image8_new,
     test_image8_usage,
-    test_image32_new_with_allocators,
+    test_image32_new,
     test_image32_usage
   };
   int num = sizeof(tests) / sizeof(tests[0]);

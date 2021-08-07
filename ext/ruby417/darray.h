@@ -13,12 +13,11 @@ struct darray {
   void (*free)(void *ptr);
 };
 
-struct darray *darray_new_with_allocators(unsigned capacity,
-                                          void (*eltfree)(void *elt),
-                                          void *(*malloc)(size_t size),
-                                          void *(*realloc)(void *ptr, size_t new_size),
-                                          void (*free)(void *ptr));
-struct darray *darray_new(unsigned capacity, void (*eltfree)(void *elt));
+struct darray *darray_new(unsigned capacity,
+                          void (*eltfree)(void *elt),
+                          void *(*malloc)(size_t size),
+                          void *(*realloc)(void *ptr, size_t new_size),
+                          void (*free)(void *ptr));
 struct darray *darray_dup(struct darray *ary);
 void darray_free(struct darray *ary);
 int darray_resize_if_necessary(struct darray *ary, unsigned desired);

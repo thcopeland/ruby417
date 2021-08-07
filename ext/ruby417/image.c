@@ -1,9 +1,7 @@
 #include <stdlib.h>
 #include "image.h"
 
-struct image8 *image8_new_with_allocators(int width, int height,
-                                          void *(*malloc)(size_t size),
-                                          void (*free)(void *ptr)) {
+struct image8 *image8_new(int width, int height, void *(*malloc)(size_t size), void (*free)(void *ptr)) {
   struct image8 *im = malloc(sizeof(*im));
 
   if (im) {
@@ -19,10 +17,6 @@ struct image8 *image8_new_with_allocators(int width, int height,
   }
 
   return im;
-}
-
-struct image8 *image8_new(int width, int height) {
-  return image8_new_with_allocators(width, height, malloc, free);
 }
 
 void image8_free(struct image8 *im) {
@@ -49,9 +43,7 @@ unsigned char image8_get_with_fallback(struct image8 *im, int x, int y, unsigned
   return fallback;
 }
 
-struct image32 *image32_new_with_allocators(int width, int height,
-                                            void *(*malloc)(size_t size),
-                                            void (*free)(void *ptr)) {
+struct image32 *image32_new(int width, int height, void *(*malloc)(size_t size), void (*free)(void *ptr)) {
   struct image32 *im = malloc(sizeof(*im));
 
   if (im) {
@@ -67,10 +59,6 @@ struct image32 *image32_new_with_allocators(int width, int height,
   }
 
   return im;
-}
-
-struct image32 *image32_new(int width, int height) {
-  return image32_new_with_allocators(width, height, malloc, free);
 }
 
 void image32_free(struct image32 *im) {

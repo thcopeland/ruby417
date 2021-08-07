@@ -4,7 +4,7 @@
 
 static struct darray *new_test_array(unsigned length, ...) {
   struct darray *array;
-  while (!(array=darray_new_with_allocators(0, NULL, xmalloc, xrealloc, xfree)));
+  while (!(array=darray_new(0, NULL, xmalloc, xrealloc, xfree)));
 
   va_list argp;
   va_start(argp, length);
@@ -28,11 +28,11 @@ static void assert_darray_vals(struct darray *ary, ...) {
   va_end(argp);
 }
 
-void test_darray_new_with_allocators(void) {
-  fprintf(stderr, "Testing darray_new_with_allocators...");
+void test_darray_new(void) {
+  fprintf(stderr, "Testing darray_new...");
 
   struct darray *ary;
-  while(!(ary=darray_new_with_allocators(5, NULL, xmalloc, xrealloc, xfree)));
+  while(!(ary=darray_new(5, NULL, xmalloc, xrealloc, xfree)));
   assert(ary->len == 0);
   assert(ary->capacity == 8);
   darray_free(ary);
@@ -60,7 +60,7 @@ void test_darray_free(void) {
   fprintf(stderr, "Testing darray_free...");
 
   struct darray *ary;
-  while(!(ary=darray_new_with_allocators(5, xfree, xmalloc, xrealloc, xfree)));
+  while(!(ary=darray_new(5, xfree, xmalloc, xrealloc, xfree)));
   for (int i = 0; i < 16; i++) {
     char *str;
     while(!(str=xmalloc(4)));
@@ -77,7 +77,7 @@ void test_darray_resize_if_necessary(void) {
   fprintf(stderr, "Testing darray_resize_if_necessary...");
 
   struct darray *ary;
-  while(!(ary=darray_new_with_allocators(0, NULL, xmalloc, xrealloc, xfree)));
+  while(!(ary=darray_new(0, NULL, xmalloc, xrealloc, xfree)));
   assert(ary->capacity == 2);
   while(!darray_resize_if_necessary(ary, 7));
   assert(ary->capacity == 8);
@@ -153,7 +153,7 @@ void test_darray_push(void) {
   fprintf(stderr, "Testing darray_push...");
 
   struct darray *ary;
-  while(!(ary=darray_new_with_allocators(0, NULL, xmalloc, xrealloc, xfree)));
+  while(!(ary=darray_new(0, NULL, xmalloc, xrealloc, xfree)));
   while(!darray_push(ary, (void*) 5l));
   while(!darray_push(ary, (void*) 6l));
   while(!darray_push(ary, (void*) 9l));
@@ -202,7 +202,7 @@ void test_darray_msort(void) {
 
 int main(int argc, char** argv) {
   void (*(tests[]))(void) = {
-    test_darray_new_with_allocators,
+    test_darray_new,
     test_darray_dup,
     test_darray_free,
     test_darray_resize_if_necessary,
