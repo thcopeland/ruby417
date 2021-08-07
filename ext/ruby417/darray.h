@@ -2,6 +2,7 @@
 #define DARRAY_H
 
 #include <stddef.h>
+#include <stdbool.h>
 
 struct darray {
   void** data;
@@ -19,7 +20,7 @@ struct darray *darray_new(unsigned capacity,
                           void *(*realloc)(void *ptr, size_t new_size),
                           void (*free)(void *ptr));
 struct darray *darray_dup(struct darray *ary);
-void darray_free(struct darray *ary);
+void darray_free(struct darray *ary, bool free_elts);
 int darray_resize_if_necessary(struct darray *ary, unsigned desired);
 void *darray_index(struct darray *ary, unsigned idx);
 void *darray_index_set(struct darray *ary, unsigned idx, void *elt);

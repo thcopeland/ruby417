@@ -35,7 +35,7 @@ void test_darray_new(void) {
   while(!(ary=darray_new(5, NULL, xmalloc, xrealloc, xfree)));
   assert(ary->len == 0);
   assert(ary->capacity == 8);
-  darray_free(ary);
+  darray_free(ary, true);
   assert_mem_clean();
 
   fprintf(stderr, "PASS\n");
@@ -49,8 +49,8 @@ void test_darray_dup(void) {
   while (!(dup=darray_dup(ary)));
   assert_darray_eq(dup, ary);
   assert(dup->capacity == ary->capacity);
-  darray_free(dup);
-  darray_free(ary);
+  darray_free(dup, false);
+  darray_free(ary, true);
   assert_mem_clean();
 
   fprintf(stderr, "PASS\n");
@@ -59,7 +59,7 @@ void test_darray_dup(void) {
 void test_darray_free(void) {
   fprintf(stderr, "Testing darray_free...");
 
-  struct darray *ary;
+  struct darray *ary, *ary2;
   while(!(ary=darray_new(5, xfree, xmalloc, xrealloc, xfree)));
   for (int i = 0; i < 16; i++) {
     char *str;
@@ -67,7 +67,9 @@ void test_darray_free(void) {
     sprintf(str, "%i", i);
     while(!darray_push(ary, str));
   }
-  darray_free(ary);
+  while(!(ary2=darray_dup(ary)));
+  darray_free(ary2, false);
+  darray_free(ary, true);
   assert_mem_clean();
 
   fprintf(stderr, "PASS\n");
@@ -85,7 +87,7 @@ void test_darray_resize_if_necessary(void) {
   assert(ary->capacity == 8);
   while(!darray_resize_if_necessary(ary, 16));
   assert(ary->capacity == 32);
-  darray_free(ary);
+  darray_free(ary, true);
   assert_mem_clean();
 
   fprintf(stderr, "PASS\n");
@@ -99,7 +101,7 @@ void test_darray_index(void) {
   assert((long) darray_index(ary, 1) == -1);
   assert((long) darray_index(ary, 2) == 1);
   assert(darray_index(ary, 3) == NULL);
-  darray_free(ary);
+  darray_free(ary, true);
   assert_mem_clean();
 
   fprintf(stderr, "PASS\n");
@@ -117,7 +119,7 @@ void test_darray_index_set(void) {
   assert((long) darray_index(ary, 1) == -1);
   assert((long) darray_index(ary, 2) == 1);
   assert(darray_index(ary, 3) == NULL);
-  darray_free(ary);
+  darray_free(ary, true);
   assert_mem_clean();
 
   fprintf(stderr, "PASS\n");
@@ -143,7 +145,7 @@ void test_darray_remove_fast(void) {
   assert(darray_remove_fast(ary, 0) == (void *) 7l);
   assert(ary->len == 0);
   assert(ary->capacity == 4);
-  darray_free(ary);
+  darray_free(ary, true);
   assert_mem_clean();
 
   fprintf(stderr, "PASS\n");
@@ -160,7 +162,7 @@ void test_darray_push(void) {
   assert(ary->len == 3);
   assert(ary->capacity == 4);
   assert_darray_vals(ary, 5, 6, 9);
-  darray_free(ary);
+  darray_free(ary, true);
   assert_mem_clean();
 
   fprintf(stderr, "PASS\n");
@@ -176,17 +178,17 @@ void test_darray_msort(void) {
   struct darray *ary = new_test_array(0);
   while(!darray_msort(ary, (void *) 1l, cmp));
   assert(ary->len == 0);
-  darray_free(ary);
+  darray_free(ary, true);
 
   ary = new_test_array(1, 42);
   while(!darray_msort(ary, (void *) 1l, cmp));
   assert_darray_vals(ary, 42);
-  darray_free(ary);
+  darray_free(ary, true);
 
   ary = new_test_array(3, 5, -3, 2);
   while(!darray_msort(ary, (void *) 1l, cmp));
   assert_darray_vals(ary, -3, 2, 5);
-  darray_free(ary);
+  darray_free(ary, true);
 
   ary = new_test_array(42, -4731, 3119, 1062, -1723, -3059, 3508, -3571, -4710, 1727, -269, 4645, -3872, -4357, -2464, 3886, 2221, -2342, -2975, 2613, -3085, -3117, 4825, -4767, -2931, 4312, 4223, -3112, 545, -2615, -4283, 308, 2828, 417, -917, -2715, -1226, -319, 3984, -583, -2300, 2487, -959);
   while(!darray_msort(ary, (void *) 1l, cmp));
@@ -194,7 +196,7 @@ void test_darray_msort(void) {
 
   while(!darray_msort(ary, (void *) -1l, cmp));
   assert_darray_vals(ary, 4825, 4645, 4312, 4223, 3984, 3886, 3508, 3119, 2828, 2613, 2487, 2221, 1727, 1062, 545, 417, 308, -269, -319, -583, -917, -959, -1226, -1723, -2300, -2342, -2464, -2615, -2715, -2931, -2975, -3059, -3085, -3112, -3117, -3571, -3872, -4283, -4357, -4710, -4731, -4767);
-  darray_free(ary);
+  darray_free(ary, true);
   assert_mem_clean();
 
   fprintf(stderr, "PASS\n");

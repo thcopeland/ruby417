@@ -51,9 +51,9 @@ struct darray *darray_dup(struct darray *ary) {
   return dup;
 }
 
-void darray_free(struct darray *ary) {
+void darray_free(struct darray *ary, bool free_elts) {
   if (ary) {
-    if (ary->eltfree) {
+    if (ary->eltfree && free_elts) {
       for(unsigned i = 0; i < ary->len; i++) {
         ary->free(darray_index(ary, i));
       }
@@ -171,8 +171,7 @@ int darray_msort(struct darray *ary, void *data, int (*cmp)(void *a, void *b, vo
 
   if (aux) {
     darray_msort_recurse(aux, ary, 0, ary->len, data, cmp);
-    aux->eltfree = NULL;
-    darray_free(aux);
+    darray_free(aux, false);
     return 1;
   }
 
