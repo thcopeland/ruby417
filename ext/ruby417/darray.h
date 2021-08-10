@@ -21,12 +21,12 @@ struct darray *darray_new(unsigned capacity,
                           void (*free)(void *ptr));
 struct darray *darray_dup(struct darray *ary);
 void darray_free(struct darray *ary, bool free_elts);
-int darray_resize_if_necessary(struct darray *ary, unsigned desired);
+bool darray_resize_if_necessary(struct darray *ary, unsigned desired);
 void *darray_index(struct darray *ary, unsigned idx);
 void *darray_index_set(struct darray *ary, unsigned idx, void *elt);
 void *darray_remove_fast(struct darray *ary, unsigned idx);
-int darray_push(struct darray *ary, void *elt);
+bool darray_push(struct darray *ary, void *elt);
 void *darray_pop(struct darray *ary);
-int darray_msort(struct darray *ary, void *data, int (*cmp)(void *a, void *b, void *data));
+bool darray_msort(struct darray *ary, void *data, int (*cmp)(void *a, void *b, void *data));
 
 #endif

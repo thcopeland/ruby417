@@ -64,7 +64,7 @@ void darray_free(struct darray *ary, bool free_elts) {
   }
 }
 
-int darray_resize_if_necessary(struct darray *ary, unsigned desired_capacity) {
+bool darray_resize_if_necessary(struct darray *ary, unsigned desired_capacity) {
   if (desired_capacity > ary->capacity || ary->capacity == 0) {
     unsigned capacity2 = 2 << (int) log2(desired_capacity | 1);
     void **new_data = ary->realloc(ary->data, capacity2 * sizeof(void*));
@@ -73,11 +73,11 @@ int darray_resize_if_necessary(struct darray *ary, unsigned desired_capacity) {
       ary->data = new_data;
       ary->capacity = capacity2;
     } else {
-      return 0;
+      return false;
     }
   }
 
-  return 1;
+  return true;
 }
 
 void *darray_index(struct darray *ary, unsigned idx) {
@@ -101,13 +101,13 @@ void *darray_remove_fast(struct darray *ary, unsigned idx) {
   return elt;
 }
 
-int darray_push(struct darray *ary, void *elt) {
+bool darray_push(struct darray *ary, void *elt) {
   if (darray_resize_if_necessary(ary, ary->len+1)) {
     darray_index_set(ary, ary->len++, elt);
-    return 1;
+    return true;
   }
 
-  return 0;
+  return false;
 }
 
 void *darray_pop(struct darray *ary) {
@@ -174,14 +174,14 @@ static void darray_msort_recurse(struct darray *read, struct darray *write,
   }
 }
 
-int darray_msort(struct darray *ary, void *data, int (*cmp)(void *a, void *b, void *data)) {
+bool darray_msort(struct darray *ary, void *data, int (*cmp)(void *a, void *b, void *data)) {
   struct darray *aux = darray_dup(ary);
 
   if (aux) {
     darray_msort_recurse(aux, ary, 0, ary->len, data, cmp);
     darray_free(aux, false);
-    return 1;
+    return true;
   }
 
-  return 0;
+  return false;
 }
