@@ -55,7 +55,7 @@ void darray_free(struct darray *ary, bool free_elts) {
   if (ary) {
     if (ary->eltfree && free_elts) {
       for(unsigned i = 0; i < ary->len; i++) {
-        ary->free(darray_index(ary, i));
+        ary->eltfree(darray_index(ary, i));
       }
     }
 
@@ -108,6 +108,14 @@ int darray_push(struct darray *ary, void *elt) {
   }
 
   return 0;
+}
+
+void *darray_pop(struct darray *ary) {
+  if (ary->len > 0) {
+    return ary->data[--ary->len];
+  }
+
+  return NULL;
 }
 
 /*

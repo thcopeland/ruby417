@@ -26,6 +26,7 @@ void *darray_index(struct darray *ary, unsigned idx);
 void *darray_index_set(struct darray *ary, unsigned idx, void *elt);
 void *darray_remove_fast(struct darray *ary, unsigned idx);
 int darray_push(struct darray *ary, void *elt);
+void *darray_pop(struct darray *ary);
 int darray_msort(struct darray *ary, void *data, int (*cmp)(void *a, void *b, void *data));
 
 #endif

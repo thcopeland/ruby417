@@ -154,6 +154,33 @@ void test_darray_remove_fast(void) {
 void test_darray_push(void) {
   fprintf(stderr, "Testing darray_push...");
 
+  struct darray *ary = new_test_array(4, 47, 2, 9, 7);
+  assert(darray_pop(ary) == (void *) 7);
+  assert(ary->len == 3);
+  assert(ary->capacity == 4);
+  assert_darray_vals(ary, 47, 2, 9);
+  assert(darray_pop(ary) == (void *) 9);
+  assert(ary->len == 2);
+  assert(ary->capacity == 4);
+  assert_darray_vals(ary, 47, 2);
+  assert(darray_pop(ary) == (void *) 2);
+  assert(ary->len == 1);
+  assert(ary->capacity == 4);
+  assert_darray_vals(ary, 47);
+  assert(darray_pop(ary) == (void *) 47);
+  assert(ary->len == 0);
+  assert(ary->capacity == 4);
+  assert(darray_pop(ary) == NULL);
+  assert(ary->len == 0);
+  darray_free(ary, true);
+  assert_mem_clean();
+
+  fprintf(stderr, "PASS\n");
+}
+
+void test_darray_pop(void) {
+  fprintf(stderr, "Testing darray_pop...");
+
   struct darray *ary;
   while(!(ary=darray_new(0, NULL, xmalloc, xrealloc, xfree)));
   while(!darray_push(ary, (void*) 5l));
@@ -211,6 +238,7 @@ int main(int argc, char** argv) {
     test_darray_index,
     test_darray_index_set,
     test_darray_push,
+    test_darray_pop,
     test_darray_remove_fast,
     test_darray_msort
   };
