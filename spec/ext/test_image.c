@@ -37,6 +37,7 @@ void test_image8_usage(void) {
   assert(image8_get_with_fallback(im, 2000, 5, 42) == 42);
   assert(image8_get_with_fallback(im, -1, 0, 42) == 42);
   image8_free(im);
+  image8_free(NULL);
   assert_mem_clean();
 
   fprintf(stderr, "PASS\n");
@@ -74,6 +75,7 @@ void test_image32_usage(void) {
   assert(image32_get_with_fallback(im, 2000, 5, 42) == 42);
   assert(image32_get_with_fallback(im, -1, 0, 42) == 42);
   image32_free(im);
+  image32_free(NULL);
   assert_mem_clean();
 
   fprintf(stderr, "PASS\n");
