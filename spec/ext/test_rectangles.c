@@ -247,44 +247,6 @@ void test_hull_minimal_rectangle(void) {
   set_allocation_success_chance(0.9);
   while (!(hull=darray_new(0, NULL, xmalloc, xrealloc, xfree)));
 
-  // for (unsigned i = 0; i < regions->len; i++) {
-  //   region = darray_index(regions, i);
-  //   while (!boundary_convex_hull(region->boundary, hull)) hull->len = 0;
-  //
-  //   for (unsigned j = 0; j < hull->len; j++) {
-  //     struct point *p = darray_index(hull, j);
-  //     image8_set(im, p->x, p->y, 128);
-  //   }
-  // }
-  //
-  // for (unsigned y = 0; y < labeled->height; y++) {
-  //   for (unsigned x = 0; x < labeled->width; x++) {
-  //     // unsigned char v = (unsigned char) image32_get(labeled, x, y);
-  //     unsigned char v = image8_get(im, x, y);
-  //     if (v == 128) {
-  //       printf("\x1b[48;2;255;0;0m  ");
-  //     } else {
-  //       printf("\x1b[48;2;%i;%i;%im  ", v, v, v);
-  //     }
-  //   }
-  //   printf("\x1b[0m\n");
-  // }
-  // region = darray_index(regions, 0);
-  // while (!boundary_convex_hull(region->boundary, hull)) hull->len = 0;
-  // hull_minimal_rectangle(hull, &rect);
-  // assert(rect.width == 161 && rect.height == 51 && rect.cx == 140 && rect.cy == 205 && float_eq(rect.orientation, 0));
-  // region = darray_index(regions, 1);
-  // while (!boundary_convex_hull(region->boundary, hull)) hull->len = 0;
-  // hull_minimal_rectangle(hull, &rect);
-  // assert(rect.width == 161 && rect.height == 51 && rect.cx == 140 && rect.cy == 205 && float_eq(rect.orientation, 0));
-  // for (unsigned i = 0; i < regions->len; i++) {
-  //   hull->len = 0;
-  //   struct rectangle rect;
-  //   region = darray_index(regions, i);
-  //   while (!boundary_convex_hull(region->boundary, hull)) hull->len = 0;
-  //   hull_minimal_rectangle(hull, &rect);
-  //   printf("%ix%i by %.5f at (%i, %i)\n", rect.width, rect.height, rect.orientation, rect.cx, rect.cy);
-  // }
   region = darray_index(regions, 0);
   do { hull->len = 0; } while (!boundary_convex_hull(region->boundary, hull));
   hull_minimal_rectangle(hull, &rect);
