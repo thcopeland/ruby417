@@ -1,5 +1,5 @@
-#include <math.h>
-#include <stdlib.h>
+#include <math.h> // sin, cos, atan2, round, sqrt, fabs, M_PI, M_PI_2
+#include <stdlib.h> // NULL
 #include "rectangles.h"
 
 static struct point *point_new(int x, int y, void *(*malloc)(size_t size)) {
@@ -12,8 +12,8 @@ static struct point *point_new(int x, int y, void *(*malloc)(size_t size)) {
 }
 
 static struct region *region_new(void *(*malloc)(size_t size),
-                          void *(*realloc)(void *ptr, size_t new_size),
-                          void (*free)(void *ptr)) {
+                                 void *(*realloc)(void *ptr, size_t new_size),
+                                 void (*free)(void *ptr)) {
   struct region *reg = malloc(sizeof(*reg));
   if (reg) {
     reg->cx = 0;
@@ -90,9 +90,9 @@ static unsigned determine_label(struct image8 *im, struct image32 *labeled,
 }
 
 static struct image32 *image_label_regions(struct image8 *im,
-                                    void *(*malloc)(size_t size),
-                                    void *(*realloc)(void *ptr, size_t new_size),
-                                    void (*free)(void *ptr)) {
+                                           void *(*malloc)(size_t size),
+                                           void *(*realloc)(void *ptr, size_t new_size),
+                                           void (*free)(void *ptr)) {
   struct image32 *labeled = image32_new(im->width, im->height, malloc, free);
   struct darray *equivs = darray_new(128, NULL, malloc, realloc, free);
   if (!labeled || !equivs) goto oom;
@@ -150,9 +150,9 @@ static bool image_follow_contour(struct image8 *im, struct darray *boundary, int
           return false;
         }
       }
-      direction = (direction - 1) & 3; /* left turn */
+      direction = (direction - 1) & 3; // left turn
     } else {
-      direction = (direction + 1) & 3; /* right turn */
+      direction = (direction + 1) & 3; // right turn
     }
 
     if      (direction == RIGHT) x++;
@@ -169,10 +169,10 @@ static void region_free_wrapper(void *ptr) {
 }
 
 static struct darray *image_extract_regions(struct image8 *image,
-                                     struct image32 *labeled,
-                                     void *(*malloc)(size_t size),
-                                     void *(*realloc)(void *ptr, size_t new_size),
-                                     void (*free)(void *ptr)) {
+                                            struct image32 *labeled,
+                                            void *(*malloc)(size_t size),
+                                            void *(*realloc)(void *ptr, size_t new_size),
+                                            void (*free)(void *ptr)) {
   struct darray *regions = darray_new(16, region_free_wrapper, malloc, realloc, free);
 
   if (regions) {
@@ -255,19 +255,14 @@ static struct point *hull_wrap_index(struct darray *hull, unsigned index) {
   return darray_index(hull, index % hull->len);
 }
 
-/*
- * Returns the perpendicular distance between a line of slope slope through the
- * point p and point q.
- */
+// Returns the perpendicular distance between q and a line of slope slope through p.
 static double line_distance(struct point *p, struct point *q, double slope) {
   return fabs((p->y - slope*p->x) - (q->y - slope*q->x)) / sqrt(slope*slope + 1);
 }
 
-/*
- * Given two points, p1 and p2, on the same line, and a third point, q1 that
- * lies on another line perpendicular to the first, determines the intersection
- * point of the lines, q2.
- */
+// Given two points, p1 and p2, on the same line, and a third point, q1 that
+// lies on another line perpendicular to the first, determines the intersection
+// point of the lines, q2.
 static void determine_fourth_point(struct point *p1, struct point *p2, struct point *q1, struct point *q2) {
   if (p1->x == p2->x) {
     q2->x = p1->x;
@@ -288,35 +283,27 @@ static void hull_minimal_rectangle(struct darray *hull, struct rectangle *rect) 
   struct point *left_base_point, *right_base_point;
 
   while (base_idx < hull->len) {
-    /* consider one edge of the hull */
+    // one edge of the hull
     left_base_point  = hull_wrap_index(hull, base_idx);
     right_base_point = hull_wrap_index(hull, base_idx+1);
 
-    /* find the point on the hull that is furthest to the left from the edge
-       (relative to the edge, which begins at the highest point and runs
-       clockwise). */
+    // find the point on the hull that is furthest to the left from the edge
     while (vec_dot(left_base_point, right_base_point, hull_wrap_index(hull, leftmost_idx), hull_wrap_index(hull, leftmost_idx+1)) > 0) ++leftmost_idx;
 
-    /* Find the point furthest from the edge in the perpendicular direction.
-      This will be at least equal to the leftmost point, generally past. */
+    // find the point furthest from the edge in the perpendicular direction
     if(altitude_idx == 0) altitude_idx = leftmost_idx;
     while (vec_cross(left_base_point, right_base_point, hull_wrap_index(hull, altitude_idx), hull_wrap_index(hull, altitude_idx+1)) > 0) ++altitude_idx;
 
-    /* Find the point that is furthest to the right from the edge, relative to
-       the edge. */
+    // find the point that is furthest to the right from the edge
     if(rightmost_idx == 0) rightmost_idx = altitude_idx;
     while (vec_dot(left_base_point, right_base_point, hull_wrap_index(hull, rightmost_idx), hull_wrap_index(hull, rightmost_idx+1)) < 0) ++rightmost_idx;
 
-    /* Determine the dimensions described by these points. If the edge is
-       vertical or horizontal, the scenario must be handled separately to
-       avoid division by zero.
-
-       Note: For the resulting rectangle, the height dimension is the
-       dimension perpendicular to the orientation vector.
-       RectangleDetection::Rectangle#normalize! relies on this.
-
-       The +1's are needed, I think, to counter the fencepost issue between
-       discrete pixels and the true geometric distance. */
+    // Determine the dimensions described by these points. If the edge is vertical
+    // or horizontal, the scenario must be handled separately to avoid division by zero.
+    // The +1's are needed (I think) to counter the fencepost issue between discrete
+    // pixels and the true geometric distance.
+    // Note: The width dimension is along the orientation vector.
+    // RectangleDetection::Rectangle#normalize! relies on this.
     if (left_base_point->x == right_base_point->x) {
       width  = abs(hull_wrap_index(hull, rightmost_idx)->y - hull_wrap_index(hull, leftmost_idx)->y)+1;
       height = abs(hull_wrap_index(hull, altitude_idx)->x - left_base_point->x)+1;
@@ -333,15 +320,13 @@ static void hull_minimal_rectangle(struct darray *hull, struct rectangle *rect) 
       struct point upper_left, upper_right;
       double orientation = atan2(right_base_point->y - left_base_point->y, right_base_point->x - left_base_point->x);
 
-      /* find two corner pixels along the base side of the rect, and use
-         them to determine the rect's center. */
+      // use two corner pixels along the base side to determine the rect's center
       determine_fourth_point(left_base_point, right_base_point, hull_wrap_index(hull, leftmost_idx), &upper_left);
       determine_fourth_point(left_base_point, right_base_point, hull_wrap_index(hull, rightmost_idx), &upper_right);
       rect->cx = (int) (upper_left.x + upper_right.x - sin(orientation)*height) / 2;
       rect->cy = (int) (upper_left.y + upper_right.y + cos(orientation)*height) / 2;
 
-      /* Normalize the orientation to be between 0 and pi/2. This simplifies
-         comparing two resulting rects. */
+      // normalize the orientation to be between 0 and pi/2
       if (orientation < 0) orientation += M_PI;
       if (orientation < M_PI_2) {
         rect->orientation = orientation;

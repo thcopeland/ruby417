@@ -1,7 +1,7 @@
 #ifndef IMAGE_H
 #define IMAGE_H
 
-#include <stddef.h>
+#include <stddef.h> // size_t
 
 struct image8 {
   int width;

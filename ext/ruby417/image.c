@@ -1,4 +1,4 @@
-#include <stdlib.h>
+#include <stdlib.h> // NULL
 #include "image.h"
 
 static struct image8 *image8_new(int width, int height, void *(*malloc)(size_t size), void (*free)(void *ptr)) {

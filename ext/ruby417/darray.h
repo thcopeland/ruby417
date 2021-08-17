@@ -1,11 +1,11 @@
 #ifndef DARRAY_H
 #define DARRAY_H
 
-#include <stddef.h>
+#include <stddef.h> // size_t
 #include <stdbool.h>
 
 struct darray {
-  void** data;
+  void **data;
   unsigned len;
   unsigned capacity;
   void (*eltfree)(void *elt);
@@ -15,10 +15,10 @@ struct darray {
 };
 
 static struct darray *darray_new(unsigned capacity,
-                          void (*eltfree)(void *elt),
-                          void *(*malloc)(size_t size),
-                          void *(*realloc)(void *ptr, size_t new_size),
-                          void (*free)(void *ptr));
+                                 void (*eltfree)(void *elt),
+                                 void *(*malloc)(size_t size),
+                                 void *(*realloc)(void *ptr, size_t new_size),
+                                 void (*free)(void *ptr));
 static struct darray *darray_dup(struct darray *ary);
 static void darray_free(struct darray *ary, bool free_elts);
 static bool darray_resize_if_necessary(struct darray *ary, unsigned desired);

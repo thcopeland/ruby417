@@ -1,13 +1,13 @@
-#include <stdlib.h>
-#include <string.h> /* memcpy */
-#include <math.h> /* log2 */
+#include <stdlib.h> // NULL
+#include <string.h> // memcpy
+#include <math.h> // log2
 #include "darray.h"
 
 static struct darray *darray_new(unsigned capacity,
-                          void (*eltfree)(void *elt),
-                          void *(*malloc)(size_t size),
-                          void *(*realloc)(void *ptr, size_t new_size),
-                          void (*free)(void *ptr)) {
+                                 void (*eltfree)(void *elt),
+                                 void *(*malloc)(size_t size),
+                                 void *(*realloc)(void *ptr, size_t new_size),
+                                 void (*free)(void *ptr)) {
   struct darray *ary = malloc(sizeof(struct darray));
 
   if (ary) {
@@ -118,16 +118,15 @@ static void *darray_pop(struct darray *ary) {
   return NULL;
 }
 
-/*
- * This implementation of merge sort uses an optimization suggested in
- * Algorithms, 4 Ed. by Wayne and Sedgewick -- instead of using an auxilliary
- * array, we treat one array as the "read" array, form which elements are read
- * and the other as the "write" array, the one to which the subsort is written.
- * At each step in the recursion, these arrays switch roles. This technique
- * allows us to avoid explicity copying between the auxilliary array and the
- * main, increasing performances *significantly*, at the expense of some
- * complexity.
- */
+
+// This implementation of merge sort uses an optimization suggested in
+// Algorithms, 4 Ed. by Wayne and Sedgewick -- instead of using an auxilliary
+// array, we treat one array as the "read" array, form which elements are read
+// and the other as the "write" array, the one to which the subsort is written.
+// At each step in the recursion, these arrays switch roles. This technique
+// allows us to avoid explicity copying between the auxilliary array and the
+// main, increasing performances *significantly*, at the expense of some
+// complexity.
 static void darray_msort_merge(struct darray *read, struct darray *write,
                                unsigned a, unsigned mid, unsigned b, void *data,
                                int (*cmp)(void *a, void *b, void *data)) {
@@ -157,7 +156,6 @@ static void darray_insertion_sort(struct darray *read, struct darray *write,
     darray_index_set(write, t, elt);
   }
 }
-
 
 static void darray_msort_recurse(struct darray *read, struct darray *write,
                                  unsigned a, unsigned b, void *data,
