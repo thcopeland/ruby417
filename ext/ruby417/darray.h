@@ -27,6 +27,6 @@ static void *darray_index_set(struct darray *ary, unsigned idx, void *elt);
 static void *darray_remove_fast(struct darray *ary, unsigned idx);
 static bool darray_push(struct darray *ary, void *elt);
 static void *darray_pop(struct darray *ary);
-static bool darray_msort(struct darray *ary, void *data, int (*cmp)(void *a, void *b, void *data));
+static bool darray_msort(struct darray *ary, void *data, int (*cmp)(const void *a, const void *b, void *data));
 
 #endif

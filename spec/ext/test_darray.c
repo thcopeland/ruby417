@@ -194,7 +194,7 @@ void test_darray_pop(void) {
   fprintf(stderr, "PASS\n");
 }
 
-int cmp(void *a, void *b, void *data) {
+int cmp(const void *a, const void *b, void *data) {
   return ((long) a - (long) b) * (long) data;
 }
 

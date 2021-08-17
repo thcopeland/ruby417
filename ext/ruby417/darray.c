@@ -1,4 +1,4 @@
-#include <stdlib.h> // NULL
+#include <stdlib.h> // NULL, possibly qsort_r
 #include <string.h> // memcpy
 #include <math.h> // log2
 #include "darray.h"
@@ -118,7 +118,6 @@ static void *darray_pop(struct darray *ary) {
   return NULL;
 }
 
-
 // This implementation of merge sort uses an optimization suggested in
 // Algorithms, 4 Ed. by Wayne and Sedgewick -- instead of using an auxilliary
 // array, we treat one array as the "read" array, form which elements are read
@@ -127,52 +126,39 @@ static void *darray_pop(struct darray *ary) {
 // allows us to avoid explicity copying between the auxilliary array and the
 // main, increasing performances *significantly*, at the expense of some
 // complexity.
-static void darray_msort_merge(struct darray *read, struct darray *write,
-                               unsigned a, unsigned mid, unsigned b, void *data,
-                               int (*cmp)(void *a, void *b, void *data)) {
-  unsigned x = a, p = a, q = mid;
-
-  while (x < b) {
-    if (q >= b || (p < mid && cmp(darray_index(read, p), darray_index(read, q), data) <= 0)) {
-      darray_index_set(write, x++, darray_index(read, p++));
-    } else {
-      darray_index_set(write, x++, darray_index(read, q++));
-    }
-  }
-}
-
-static void darray_insertion_sort(struct darray *read, struct darray *write,
-                                  unsigned a, unsigned b, void *data,
-                                  int (*cmp)(void *a, void *b, void *data)) {
-  unsigned t, p;
-  for (t=p=a; p<b; t=++p) {
-    void *elt = darray_index(read, p);
-
-    while (t > a && cmp(elt, darray_index(write, t-1), data) < 0) {
-      darray_index_set(write, t, darray_index(write, t-1));
-      t--;
-    }
-
-    darray_index_set(write, t, elt);
-  }
-}
-
 static void darray_msort_recurse(struct darray *read, struct darray *write,
                                  unsigned a, unsigned b, void *data,
-                                 int (*cmp)(void *a, void *b, void *data)) {
-  if (b - a <= 16) {
-    darray_insertion_sort(read, write, a, b, data, cmp);
+                                 int (*cmp)(const void *a, const void *b, void *data)) {
+  if (b - a < 16) {
+    // insertion sort
+    unsigned t, p;
+    for (t=p=a; p<b; t=++p) {
+      void *elt = read->data[p];
+      while (t > a && cmp(elt, write->data[t-1], data) < 0) {
+        write->data[t] = write->data[t-1];
+        t--;
+      }
+      write->data[t] = elt;
+    }
   } else {
     unsigned mid = a + (b - a) / 2;
 
     darray_msort_recurse(write, read, a, mid, data, cmp);
     darray_msort_recurse(write, read, mid, b, data, cmp);
 
-    darray_msort_merge(read, write, a, mid, b, data, cmp);
+    // merge
+    unsigned x = a, p = a, q = mid;
+    while (x < b) {
+      if (q >= b || (p < mid && cmp(read->data[p], read->data[q], data) <= 0)) {
+        write->data[x++] = read->data[p++];
+      } else {
+        write->data[x++] = read->data[q++];
+      }
+    }
   }
 }
 
-static bool darray_msort(struct darray *ary, void *data, int (*cmp)(void *a, void *b, void *data)) {
+static bool darray_msort(struct darray *ary, void *data, int (*cmp)(const void *a, const void *b, void *data)) {
   struct darray *aux = darray_dup(ary);
 
   if (aux) {
