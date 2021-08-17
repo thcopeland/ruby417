@@ -14,19 +14,19 @@ struct darray {
   void (*free)(void *ptr);
 };
 
-struct darray *darray_new(unsigned capacity,
+static struct darray *darray_new(unsigned capacity,
                           void (*eltfree)(void *elt),
                           void *(*malloc)(size_t size),
                           void *(*realloc)(void *ptr, size_t new_size),
                           void (*free)(void *ptr));
-struct darray *darray_dup(struct darray *ary);
-void darray_free(struct darray *ary, bool free_elts);
-bool darray_resize_if_necessary(struct darray *ary, unsigned desired);
-void *darray_index(struct darray *ary, unsigned idx);
-void *darray_index_set(struct darray *ary, unsigned idx, void *elt);
-void *darray_remove_fast(struct darray *ary, unsigned idx);
-bool darray_push(struct darray *ary, void *elt);
-void *darray_pop(struct darray *ary);
-bool darray_msort(struct darray *ary, void *data, int (*cmp)(void *a, void *b, void *data));
+static struct darray *darray_dup(struct darray *ary);
+static void darray_free(struct darray *ary, bool free_elts);
+static bool darray_resize_if_necessary(struct darray *ary, unsigned desired);
+static void *darray_index(struct darray *ary, unsigned idx);
+static void *darray_index_set(struct darray *ary, unsigned idx, void *elt);
+static void *darray_remove_fast(struct darray *ary, unsigned idx);
+static bool darray_push(struct darray *ary, void *elt);
+static void *darray_pop(struct darray *ary);
+static bool darray_msort(struct darray *ary, void *data, int (*cmp)(void *a, void *b, void *data));
 
 #endif

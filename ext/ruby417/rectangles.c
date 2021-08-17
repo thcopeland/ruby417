@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include "rectangles.h"
 
-struct point *point_new(int x, int y, void *(*malloc)(size_t size)) {
+static struct point *point_new(int x, int y, void *(*malloc)(size_t size)) {
   struct point *pt = malloc(sizeof(*pt));
   if (pt) {
     pt->x = x;
@@ -11,7 +11,7 @@ struct point *point_new(int x, int y, void *(*malloc)(size_t size)) {
   return pt;
 }
 
-struct region *region_new(void *(*malloc)(size_t size),
+static struct region *region_new(void *(*malloc)(size_t size),
                           void *(*realloc)(void *ptr, size_t new_size),
                           void (*free)(void *ptr)) {
   struct region *reg = malloc(sizeof(*reg));
@@ -29,7 +29,7 @@ struct region *region_new(void *(*malloc)(size_t size),
   return reg;
 }
 
-void region_shallow_free(struct region *reg) {
+static void region_shallow_free(struct region *reg) {
   if (reg) {
     void (*free)(void *ptr) = reg->boundary->free;
     darray_free(reg->boundary, false);
@@ -37,7 +37,7 @@ void region_shallow_free(struct region *reg) {
   }
 }
 
-void region_free(struct region *reg) {
+static void region_free(struct region *reg) {
   if (reg) {
     void (*free)(void *ptr) = reg->boundary->free;
     darray_free(reg->boundary, true);
@@ -89,7 +89,7 @@ static unsigned determine_label(struct image8 *im, struct image32 *labeled,
   return label;
 }
 
-struct image32 *image_label_regions(struct image8 *im,
+static struct image32 *image_label_regions(struct image8 *im,
                                     void *(*malloc)(size_t size),
                                     void *(*realloc)(void *ptr, size_t new_size),
                                     void (*free)(void *ptr)) {
@@ -132,7 +132,7 @@ static bool is_contour_pixel(struct image8 *im, int x, int y, unsigned char targ
          target != image8_get_with_fallback(im, x, y+1, ~target);
 }
 
-bool image_follow_contour(struct image8 *im, struct darray *boundary, int start_x, int start_y) {
+static bool image_follow_contour(struct image8 *im, struct darray *boundary, int start_x, int start_y) {
   static const int RIGHT = 0, DOWN = 1, LEFT = 2, UP = 3;
   struct point* point = NULL;
   unsigned char target = image8_get(im, start_x, start_y);
@@ -168,7 +168,7 @@ static void region_free_wrapper(void *ptr) {
   region_free((struct region *) ptr);
 }
 
-struct darray *image_extract_regions(struct image8 *image,
+static struct darray *image_extract_regions(struct image8 *image,
                                      struct image32 *labeled,
                                      void *(*malloc)(size_t size),
                                      void *(*realloc)(void *ptr, size_t new_size),
@@ -232,7 +232,7 @@ static long vec_cross(struct point *a, struct point *b, struct point *c, struct 
   return (long) (b->x-a->x)*(d->y-c->y) - (long) (b->y-a->y)*(d->x-c->x);
 }
 
-bool boundary_convex_hull(struct darray *boundary, struct darray *hull) {
+static bool boundary_convex_hull(struct darray *boundary, struct darray *hull) {
   if (boundary->len > 0) {
     // Since (by construction) it is the left-most point with the highest y-value,
     // the first point in the boundary is also in the convex hull.
@@ -282,7 +282,7 @@ static void determine_fourth_point(struct point *p1, struct point *p2, struct po
   }
 }
 
-void hull_minimal_rectangle(struct darray *hull, struct rectangle *rect) {
+static void hull_minimal_rectangle(struct darray *hull, struct rectangle *rect) {
   double min_area = -1, slope, width, height;
   unsigned base_idx = 0, leftmost_idx = base_idx, altitude_idx = 0, rightmost_idx = 0;
   struct point *left_base_point, *right_base_point;

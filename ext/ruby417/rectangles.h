@@ -22,23 +22,23 @@ struct rectangle {
   double orientation;
 };
 
-struct point *point_new(int x, int y, void *(*malloc)(size_t size));
-struct region *region_new(void *(*malloc)(size_t size),
-                          void *(*realloc)(void *ptr, size_t new_size),
-                          void (*free)(void *ptr));
-void region_shallow_free(struct region *reg);
-void region_free(struct region *reg);
-struct image32 *image_label_regions(struct image8 *im,
-                                    void *(*malloc)(size_t size),
-                                    void *(*realloc)(void *ptr, size_t new_size),
-                                    void (*free)(void *ptr));
-bool image_follow_contour(struct image8 *im, struct darray *boundary, int start_x, int start_y);
-struct darray *image_extract_regions(struct image8 *image,
-                                     struct image32 *labeled,
-                                     void *(*malloc)(size_t size),
-                                     void *(*realloc)(void *ptr, size_t new_size),
-                                     void (*free)(void *ptr));
-bool boundary_convex_hull(struct darray *boundary, struct darray *hull);
-void hull_minimal_rectangle(struct darray *hull, struct rectangle *rect);
+static struct point *point_new(int x, int y, void *(*malloc)(size_t size));
+static struct region *region_new(void *(*malloc)(size_t size),
+                                 void *(*realloc)(void *ptr, size_t new_size),
+                                 void (*free)(void *ptr));
+static void region_shallow_free(struct region *reg);
+static void region_free(struct region *reg);
+static struct image32 *image_label_regions(struct image8 *im,
+                                           void *(*malloc)(size_t size),
+                                          void *(*realloc)(void *ptr, size_t new_size),
+                                          void (*free)(void *ptr));
+static bool image_follow_contour(struct image8 *im, struct darray *boundary, int start_x, int start_y);
+static struct darray *image_extract_regions(struct image8 *image,
+                                            struct image32 *labeled,
+                                            void *(*malloc)(size_t size),
+                                            void *(*realloc)(void *ptr, size_t new_size),
+                                            void (*free)(void *ptr));
+static bool boundary_convex_hull(struct darray *boundary, struct darray *hull);
+static void hull_minimal_rectangle(struct darray *hull, struct rectangle *rect);
 
 #endif

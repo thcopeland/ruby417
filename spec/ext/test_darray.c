@@ -1,6 +1,5 @@
 #include <stdarg.h>
 #include "spec_helper.h"
-#include "darray.h"
 
 static struct darray *new_test_array(unsigned length, ...) {
   struct darray *array;

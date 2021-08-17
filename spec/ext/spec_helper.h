@@ -4,7 +4,7 @@
 #include <assert.h>
 #include <time.h>
 #include <string.h>
-#include "image.h"
+#include "ruby417.c"
 
 static unsigned allocations = 0, frees = 0, allocation_success_odds = 512;
 

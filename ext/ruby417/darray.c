@@ -3,7 +3,7 @@
 #include <math.h> /* log2 */
 #include "darray.h"
 
-struct darray *darray_new(unsigned capacity,
+static struct darray *darray_new(unsigned capacity,
                           void (*eltfree)(void *elt),
                           void *(*malloc)(size_t size),
                           void *(*realloc)(void *ptr, size_t new_size),
@@ -28,7 +28,7 @@ struct darray *darray_new(unsigned capacity,
   return ary;
 }
 
-struct darray *darray_dup(struct darray *ary) {
+static struct darray *darray_dup(struct darray *ary) {
   struct darray *dup = ary->malloc(sizeof(struct darray));
 
   if (dup) {
@@ -51,7 +51,7 @@ struct darray *darray_dup(struct darray *ary) {
   return dup;
 }
 
-void darray_free(struct darray *ary, bool free_elts) {
+static void darray_free(struct darray *ary, bool free_elts) {
   if (ary) {
     if (ary->eltfree && free_elts) {
       for(unsigned i = 0; i < ary->len; i++) {
@@ -64,7 +64,7 @@ void darray_free(struct darray *ary, bool free_elts) {
   }
 }
 
-bool darray_resize_if_necessary(struct darray *ary, unsigned desired_capacity) {
+static bool darray_resize_if_necessary(struct darray *ary, unsigned desired_capacity) {
   if (desired_capacity > ary->capacity || ary->capacity == 0) {
     unsigned capacity2 = 2 << (int) log2(desired_capacity | 1);
     void **new_data = ary->realloc(ary->data, capacity2 * sizeof(void*));
@@ -80,17 +80,17 @@ bool darray_resize_if_necessary(struct darray *ary, unsigned desired_capacity) {
   return true;
 }
 
-void *darray_index(struct darray *ary, unsigned idx) {
+static void *darray_index(struct darray *ary, unsigned idx) {
   if (idx < ary->len) return ary->data[idx];
   return NULL;
 }
 
-void *darray_index_set(struct darray *ary, unsigned idx, void *elt) {
+static void *darray_index_set(struct darray *ary, unsigned idx, void *elt) {
   if (idx < ary->len) return ary->data[idx] = elt;
   return NULL;
 }
 
-void *darray_remove_fast(struct darray *ary, unsigned idx) {
+static void *darray_remove_fast(struct darray *ary, unsigned idx) {
   void *elt = darray_index(ary, idx);
 
   if (idx < ary->len) {
@@ -101,7 +101,7 @@ void *darray_remove_fast(struct darray *ary, unsigned idx) {
   return elt;
 }
 
-bool darray_push(struct darray *ary, void *elt) {
+static bool darray_push(struct darray *ary, void *elt) {
   if (darray_resize_if_necessary(ary, ary->len+1)) {
     darray_index_set(ary, ary->len++, elt);
     return true;
@@ -110,7 +110,7 @@ bool darray_push(struct darray *ary, void *elt) {
   return false;
 }
 
-void *darray_pop(struct darray *ary) {
+static void *darray_pop(struct darray *ary) {
   if (ary->len > 0) {
     return ary->data[--ary->len];
   }
@@ -174,7 +174,7 @@ static void darray_msort_recurse(struct darray *read, struct darray *write,
   }
 }
 
-bool darray_msort(struct darray *ary, void *data, int (*cmp)(void *a, void *b, void *data)) {
+static bool darray_msort(struct darray *ary, void *data, int (*cmp)(void *a, void *b, void *data)) {
   struct darray *aux = darray_dup(ary);
 
   if (aux) {

@@ -1,5 +1,4 @@
 #include "spec_helper.h"
-#include "image.h"
 
 void test_image8_new(void) {
   fprintf(stderr, "Testing image8_new...");

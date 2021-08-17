@@ -1,5 +1,4 @@
 #include "spec_helper.h"
-#include "rectangles.c" // to test static functions
 
 void test_point_new(void) {
   fprintf(stderr, "Testing point_new...");
