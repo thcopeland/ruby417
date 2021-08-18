@@ -19,6 +19,7 @@ struct region {
 struct rectangle {
   int cx, cy;
   int width, height;
+  long fill;
   double orientation;
 };
 
@@ -39,6 +40,6 @@ static struct darray *image_extract_regions(struct image8 *image,
                                             void *(*realloc)(void *ptr, size_t new_size),
                                             void (*free)(void *ptr));
 static bool boundary_convex_hull(struct darray *boundary, struct darray *hull);
-static void hull_minimal_rectangle(struct darray *hull, struct rectangle *rect);
+static void hull_minimal_rectangle(struct darray *hull, long fill, struct rectangle *rect);
 
 #endif

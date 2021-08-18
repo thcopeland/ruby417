@@ -277,7 +277,7 @@ static void determine_fourth_point(struct point *p1, struct point *p2, struct po
   }
 }
 
-static void hull_minimal_rectangle(struct darray *hull, struct rectangle *rect) {
+static void hull_minimal_rectangle(struct darray *hull, long fill, struct rectangle *rect) {
   double min_area = -1, slope, width, height;
   unsigned base_idx = 0, leftmost_idx = base_idx, altitude_idx = 0, rightmost_idx = 0;
   struct point *left_base_point, *right_base_point;
@@ -325,6 +325,7 @@ static void hull_minimal_rectangle(struct darray *hull, struct rectangle *rect) 
       determine_fourth_point(left_base_point, right_base_point, hull_wrap_index(hull, rightmost_idx), &upper_right);
       rect->cx = (int) (upper_left.x + upper_right.x - sin(orientation)*height) / 2;
       rect->cy = (int) (upper_left.y + upper_right.y + cos(orientation)*height) / 2;
+      rect->fill = fill;
 
       // normalize the orientation to be between 0 and pi/2
       if (orientation < 0) orientation += M_PI;

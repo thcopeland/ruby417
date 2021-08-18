@@ -226,8 +226,8 @@ void test_boundary_convex_hull(void) {
   fprintf(stderr, "PASS\n");
 }
 
-void assert_rectangle(struct rectangle rect, int cx, int cy, int width, int height, double orientation) {
-  assert(rect.width == width && rect.height == height && rect.cx == cx && rect.cy == cy && fabs(rect.orientation-orientation) < 0.0001);
+void assert_rectangle(struct rectangle rect, int cx, int cy, long fill, int width, int height, double orientation) {
+  assert(rect.width == width && rect.height == height && rect.fill == fill && rect.cx == cx && rect.cy == cy && fabs(rect.orientation-orientation) < 0.0001);
 }
 
 void test_hull_minimal_rectangle(void) {
@@ -248,23 +248,23 @@ void test_hull_minimal_rectangle(void) {
 
   region = darray_index(regions, 0);
   do { hull->len = 0; } while (!boundary_convex_hull(region->boundary, hull));
-  hull_minimal_rectangle(hull, &rect);
-  assert_rectangle(rect, 140, 205, 161, 51, 0.0);
+  hull_minimal_rectangle(hull, region->area, &rect);
+  assert_rectangle(rect, 140, 205, 7011, 161, 51, 0.0);
 
   region = darray_index(regions, 1);
   do { hull->len = 0; } while (!boundary_convex_hull(region->boundary, hull));
-  hull_minimal_rectangle(hull, &rect);
-  assert_rectangle(rect, 127, 128, 256, 256, 0.0);
+  hull_minimal_rectangle(hull, region->area, &rect);
+  assert_rectangle(rect, 127, 128, 49270, 256, 256, 0.0);
 
   region = darray_index(regions, 2);
   do { hull->len = 0; } while (!boundary_convex_hull(region->boundary, hull));
-  hull_minimal_rectangle(hull, &rect);
-  assert_rectangle(rect, 151, 89, 122, 118, 1.4056);
+  hull_minimal_rectangle(hull, region->area, &rect);
+  assert_rectangle(rect, 151, 89, 7341, 122, 118, 1.4056);
 
   region = darray_index(regions, 3);
   do { hull->len = 0; } while (!boundary_convex_hull(region->boundary, hull));
-  hull_minimal_rectangle(hull, &rect);
-  assert_rectangle(rect, 60, 60, 31, 61, 0.78540);
+  hull_minimal_rectangle(hull, region->area, &rect);
+  assert_rectangle(rect, 60, 60, 1914, 31, 61, 0.78540);
 
   image8_free(im);
   image32_free(labeled);
