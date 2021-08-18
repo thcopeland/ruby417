@@ -228,6 +228,36 @@ void test_darray_msort(void) {
   fprintf(stderr, "PASS\n");
 }
 
+void test_darray_qsort(void) {
+  fprintf(stderr, "Testing darray_qsort...");
+
+  struct darray *ary = new_test_array(0);
+  darray_qsort(ary, (void *) 1l, cmp);
+  assert(ary->len == 0);
+  darray_free(ary, true);
+
+  ary = new_test_array(1, 42);
+  darray_qsort(ary, (void *) 1l, cmp);
+  assert_darray_vals(ary, 42);
+  darray_free(ary, true);
+
+  ary = new_test_array(3, 5, -3, 2);
+  darray_qsort(ary, (void *) 1l, cmp);
+  assert_darray_vals(ary, -3, 2, 5);
+  darray_free(ary, true);
+
+  ary = new_test_array(42, -4731, 3119, 1062, -1723, -3059, 3508, -3571, -4710, 1727, -269, 4645, -3872, -4357, -2464, 3886, 2221, -2342, -2975, 2613, -3085, -3117, 4825, -4767, -2931, 4312, 4223, -3112, 545, -2615, -4283, 308, 2828, 417, -917, -2715, -1226, -319, 3984, -583, -2300, 2487, -959);
+  darray_qsort(ary, (void *) 1l, cmp);
+  assert_darray_vals(ary, -4767, -4731, -4710, -4357, -4283, -3872, -3571, -3117, -3112, -3085, -3059, -2975, -2931, -2715, -2615, -2464, -2342, -2300, -1723, -1226, -959, -917, -583, -319, -269, 308, 417, 545, 1062, 1727, 2221, 2487, 2613, 2828, 3119, 3508, 3886, 3984, 4223, 4312, 4645, 4825);
+
+  darray_qsort(ary, (void *) -1l, cmp);
+  assert_darray_vals(ary, 4825, 4645, 4312, 4223, 3984, 3886, 3508, 3119, 2828, 2613, 2487, 2221, 1727, 1062, 545, 417, 308, -269, -319, -583, -917, -959, -1226, -1723, -2300, -2342, -2464, -2615, -2715, -2931, -2975, -3059, -3085, -3112, -3117, -3571, -3872, -4283, -4357, -4710, -4731, -4767);
+  darray_free(ary, true);
+  assert_mem_clean();
+
+  fprintf(stderr, "PASS\n");
+}
+
 int main(int argc, char** argv) {
   void (*(tests[]))(void) = {
     test_darray_new,
@@ -239,7 +269,8 @@ int main(int argc, char** argv) {
     test_darray_push,
     test_darray_pop,
     test_darray_remove_fast,
-    test_darray_msort
+    test_darray_msort,
+    test_darray_qsort
   };
   int num = sizeof(tests) / sizeof(tests[0]);
   run_tests(num, tests);

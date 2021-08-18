@@ -169,3 +169,73 @@ static bool darray_msort(struct darray *ary, void *data, int (*cmp)(const void *
 
   return false;
 }
+
+#if defined(HAVE_BSD_QSORT_R) || defined(HAVE_GNU_QSORT_R)
+struct qsort_r_thunk {
+  void *data;
+  int (*cmp)(const void *a, const void *b, void *data);
+};
+
+#ifdef HAVE_BSD_QSORT_R
+static int bsd_qsort_r_compare(void *data, const void *a, const void *b) {
+  struct qsort_r_thunk *thunk = data;
+  return thunk->cmp(*((void**) a), *((void**) b), thunk->data);
+}
+extern void qsort_r(void *base, size_t	nmemb, size_t size, void *thunk, int (*compar)(void *, const void *, const void	*));
+
+#else // HAVE_BSD_QSORT_R
+
+static int gnu_qsort_r_compare(const void *a, const void *b, void *data) {
+  struct qsort_r_thunk *thunk = data;
+  return thunk->cmp(*((void**) a), *((void**) b), thunk->data);
+}
+extern void qsort_r(void *base, size_t nmemb, size_t size, int (*compar)(const void *, const void *, void *), void *arg);
+
+#endif // HAVE_BSD_QSORT_R
+
+#else // defined(HAVE_BSD_QSORT_R) || defined(HAVE_GNU_QSORT_R)
+
+#define DARRAY_QSORT_SWAP(t, a, b) (t=a, a=b, b=t)
+static void darray_qsort_recurse(struct darray *ary, void *data, int (*cmp)(const void *a, const void *b, void *data), unsigned start, unsigned end) {
+  if (end - start < 32) {
+    unsigned t, p;
+    for (t=p=start; p<end; t=++p) {
+      void *elt = ary->data[p];
+      while (t > start && cmp(elt, ary->data[t-1], data) < 0) {
+        ary->data[t] = ary->data[t-1];
+        --t;
+      }
+      ary->data[t] = elt;
+    }
+  } else if (end - start > 1) {
+    void *tmp, *pivot;
+    unsigned p = start, q = end, m = p+(q-p)/2;
+    // in-place median of three
+    if (cmp(ary->data[q-1], ary->data[m], data) < 0) DARRAY_QSORT_SWAP(tmp, ary->data[q-1], ary->data[m]); // c > b
+    if (cmp(ary->data[q-1], ary->data[p], data) < 0) DARRAY_QSORT_SWAP(tmp, ary->data[p], ary->data[q-1]); // c > b && c > a
+    if (cmp(ary->data[p], ary->data[m], data) < 0) DARRAY_QSORT_SWAP(tmp, ary->data[p], ary->data[m]); // c > b && c > a && a > b
+    pivot = ary->data[start];
+    while (true) {
+      while (cmp(ary->data[++p], pivot, data) < 0 && p < end-1);
+      while (cmp(ary->data[--q], pivot, data) > 0 && q > start);
+      if (p >= q) break;
+      DARRAY_QSORT_SWAP(tmp, ary->data[p], ary->data[q]);
+    }
+    DARRAY_QSORT_SWAP(tmp, ary->data[q], ary->data[start]);
+    darray_qsort_recurse(ary, data, cmp, start, q);
+    darray_qsort_recurse(ary, data, cmp, q+1, end);
+  }
+}
+#endif // defined(HAVE_BSD_QSORT_R) || defined(HAVE_GNU_QSORT_R)
+
+static void darray_qsort(struct darray *ary, void *data, int (*cmp)(const void *a, const void *b, void *data)) {
+  #if defined(HAVE_GNU_QSORT_R)
+    struct qsort_r_thunk thunk = { .data = data, .cmp = cmp };
+    qsort_r(ary->data, ary->len, sizeof(*ary->data), gnu_qsort_r_compare, &thunk);
+  #elif defined(HAVE_BSD_QSORT_R)
+    struct qsort_r_thunk thunk = { .data = data, .cmp = cmp };
+    qsort_r(ary->data, ary->len, sizeof(*ary->data), &thunk, bsd_qsort_r_compare);
+  #else
+    darray_qsort_recurse(ary, data, cmp, 0, ary->len);
+  #endif
+}
