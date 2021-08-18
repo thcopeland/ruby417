@@ -21,7 +21,7 @@ echo "Checking source..."
 egcc $source_dir/ruby417.c -Wall -Wextra -fsyntax-only
 
 echo "Compiling..."
-flags="-g -lm -I$source_dir"
+flags="-Wall -Wextra -Wno-unused-function -g -lm -I$source_dir"
 egcc $test_dir/test_darray.c $flags -o $test_dir/exec_test_darray
 egcc $test_dir/test_image.c $flags -o $test_dir/exec_test_image
 egcc $test_dir/test_rectangles.c $flags -o $test_dir/exec_test_rectangles

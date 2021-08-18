@@ -80,7 +80,7 @@ void test_image32_usage(void) {
   fprintf(stderr, "PASS\n");
 }
 
-int main(int argc, char** argv) {
+int main(void) {
   void (*(tests[]))(void) = {
     test_image8_new,
     test_image8_usage,

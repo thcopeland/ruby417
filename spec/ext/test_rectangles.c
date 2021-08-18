@@ -275,7 +275,7 @@ void test_hull_minimal_rectangle(void) {
   fprintf(stderr, "PASS\n");
 }
 
-int main(int argc, char** argv) {
+int main(void) {
   void (*(tests[]))(void) = {
     test_point_new,
     test_region_new,

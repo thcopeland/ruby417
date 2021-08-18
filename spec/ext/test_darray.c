@@ -17,13 +17,13 @@ static struct darray *new_test_array(unsigned length, ...) {
 
 static void assert_darray_eq(struct darray *a, struct darray *b) {
   assert(a->len == b->len);
-  for(int i = 0; i < a->len; i++) assert(darray_index(a, i) == darray_index(b, i));
+  for(unsigned i = 0; i < a->len; i++) assert(darray_index(a, i) == darray_index(b, i));
 }
 
 static void assert_darray_vals(struct darray *ary, ...) {
   va_list argp;
   va_start(argp, ary);
-  for(int i = 0; i < ary->len; i++) assert((long) darray_index(ary, i) == (long) va_arg(argp, int));
+  for(unsigned i = 0; i < ary->len; i++) assert((long) darray_index(ary, i) == (long) va_arg(argp, int));
   va_end(argp);
 }
 
@@ -258,7 +258,7 @@ void test_darray_qsort(void) {
   fprintf(stderr, "PASS\n");
 }
 
-int main(int argc, char** argv) {
+int main(void) {
   void (*(tests[]))(void) = {
     test_darray_new,
     test_darray_dup,
