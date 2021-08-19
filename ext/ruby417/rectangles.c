@@ -1,5 +1,5 @@
-#include <math.h> // sin, cos, atan2, round, sqrt, fabs, M_PI, M_PI_2
-#include <stdlib.h> // NULL
+#include <math.h> // sin, cos, atan2, round, sqrt, hypot, M_PI, M_PI_2
+#include <stdlib.h> // abs, NULL
 #include "rectangles.h"
 
 static struct point *point_new(int x, int y, void *(*malloc)(size_t size)) {
@@ -339,9 +339,109 @@ static void hull_minimal_rectangle(struct darray *hull, long fill, struct rectan
         rect->height = (int) width;
       }
 
+      // normalize again so that height >= width, orientation is between 0 and pi, and
+      // the orientation is along the height
+      if (rect->width > rect->height) {
+        int tmp = rect->width;
+        rect->width = rect->height;
+        rect->height = tmp;
+        rect->orientation += M_PI_2;
+      }
+
       min_area = width*height;
     }
 
     ++base_idx;
   }
+}
+
+static int rect_cmp_by_area(const void *a, const void *b, void *ctx) {
+  (void) ctx;
+  return ((struct rectangle*) a)->fill - ((struct rectangle*) b)->fill;
+}
+
+static int pair_cmp_by_score(const void *a, const void *b, void *ctx) {
+  (void) ctx;
+  return ((struct rectangle_pair*) a)->score < ((struct rectangle_pair*) b)->score ? 1 : -1;
+}
+
+static bool rect_qualifies(struct pairing_settings *settings, struct rectangle *rect) {
+  return (long) rect->width*rect->height >= settings->area_threshold &&
+         (double) rect->fill/(rect->width*rect->height) >= settings->rectangularity_threshold &&
+         rect->height >= rect->width*settings->guard_aspect_min &&
+         rect->height <= rect->width*settings->guard_aspect_max;
+}
+
+static bool rect_pair_qualifies(struct pairing_settings *settings, struct rectangle *one, struct rectangle *two) {
+  double joining_angle = atan2(one->cy-two->cy, one->cx-two->cx),
+         barcode_width = hypot(one->cx-two->cx, one->cy-two->cy),
+         barcode_height = (one->height + two->height)/2,
+         average_width = (one->width + two->width)/2,
+         average_area = ((double) one->width*one->height+two->width*two->height)/2;
+
+  return rect_qualifies(settings, one) &&
+         rect_qualifies(settings, two) &&
+         abs(one->width*one->height-two->width*two->height) <= average_area*settings->area_variation_threshold &&
+         abs(one->width-two->width) <= average_width*settings->width_variation_threshold &&
+         abs(one->height-two->height) <= barcode_height*settings->height_variation_threshold &&
+         // using sin here as a "distance from pi/2 and 3pi/2" approximation
+         fabs(sin(one->orientation-two->orientation)) <= settings->angle_variation_threshold &&
+         fabs(sin(joining_angle-one->orientation)) <= settings->angle_variation_threshold &&
+         fabs(sin(joining_angle-two->orientation)) <= settings->angle_variation_threshold &&
+         barcode_width >= barcode_height*settings->barcode_aspect_min &&
+         barcode_width <= barcode_height*settings->barcode_aspect_max;
+}
+
+static double scale_score(double x) {
+  // somewhat arbitrary function to restrict range to (0, 1], with maximum at 0
+  return 1/(x*x+1);
+}
+
+static double score_rect_pair(struct rectangle *one, struct rectangle *two) {
+  double joining_angle = atan2(one->cy-two->cy, one->cx-two->cx),
+         barcode_width = hypot(one->cx-two->cx, one->cy-two->cy),
+         barcode_height = (one->height + two->height)/2,
+         average_width = (one->width + two->width)/2,
+         average_area = ((double) one->width*one->height+two->width*two->height)/2;
+
+  double rectangularity_score = (double) (one->fill*two->fill)/(one->width*one->height*two->width*two->height),
+         area_variation_score = scale_score(abs(one->width*one->height-two->width*two->height)/average_area/16),
+         dimension_diff_score = scale_score(abs(one->width-two->width)/average_width/8+abs(one->height-two->height)/barcode_height/2),
+         angle_variation_score = scale_score(4*sin(one->orientation-two->orientation)),
+         joining_angle_score = scale_score(2*fabs(sin(joining_angle-one->orientation)) + 2*fabs(sin(joining_angle-two->orientation))),
+         guard_aspect_score =  barcode_height/average_width > 3 ? 1.0 : 0.9,
+         guard_area_score = 1 - 1/sqrt(average_area),
+         barcode_aspect_score = barcode_width/barcode_height > 2 ? 1.0 : 0.9;
+
+  return rectangularity_score * area_variation_score * dimension_diff_score * angle_variation_score * joining_angle_score * guard_aspect_score * guard_area_score * barcode_aspect_score;
+}
+
+static bool pair_aligned_rectangles(struct pairing_settings *settings, struct darray *rects, struct darray *pairs) {
+  darray_qsort(rects, NULL, rect_cmp_by_area);
+
+  for (unsigned i = 0; i < rects->len-1; i++) {
+    struct rectangle *one = darray_index(rects, i);
+    if (!rect_qualifies(settings, one)) continue;
+
+    for (unsigned j = i+1; j < rects->len; j++) {
+      struct rectangle *two = darray_index(rects, j);
+
+      if (rect_pair_qualifies(settings, one, two)) {
+        struct rectangle_pair *pair = pairs->malloc(sizeof(*pair));
+        if (!pair) return false;
+        pair->one = one;
+        pair->two = two;
+        pair->score = score_rect_pair(one, two);
+
+        if (!darray_push(pairs, pair)) {
+          pairs->free(pair);
+          return false;
+        }
+      }
+    }
+  }
+
+  darray_qsort(pairs, NULL, pair_cmp_by_score);
+
+  return true;
 }

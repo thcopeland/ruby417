@@ -249,7 +249,7 @@ void test_hull_minimal_rectangle(void) {
   region = darray_index(regions, 0);
   do { hull->len = 0; } while (!boundary_convex_hull(region->boundary, hull));
   hull_minimal_rectangle(hull, region->area, &rect);
-  assert_rectangle(rect, 140, 205, 7011, 161, 51, 0.0);
+  assert_rectangle(rect, 140, 205, 7011, 51, 161, 1.5708);
 
   region = darray_index(regions, 1);
   do { hull->len = 0; } while (!boundary_convex_hull(region->boundary, hull));
@@ -259,7 +259,7 @@ void test_hull_minimal_rectangle(void) {
   region = darray_index(regions, 2);
   do { hull->len = 0; } while (!boundary_convex_hull(region->boundary, hull));
   hull_minimal_rectangle(hull, region->area, &rect);
-  assert_rectangle(rect, 151, 89, 7341, 122, 118, 1.4056);
+  assert_rectangle(rect, 151, 89, 7341, 118, 122, 2.97644);
 
   region = darray_index(regions, 3);
   do { hull->len = 0; } while (!boundary_convex_hull(region->boundary, hull));
@@ -268,6 +268,86 @@ void test_hull_minimal_rectangle(void) {
 
   image8_free(im);
   image32_free(labeled);
+  darray_free(regions, true);
+  darray_free(hull, false);
+  assert_mem_clean();
+
+  fprintf(stderr, "PASS\n");
+}
+
+void test_pair_aligned_rectangles(void) {
+  fprintf(stderr, "Testing pair_aligned_rectangles...");
+
+  struct image8 *im = load_image_fixture("256x256_assorted_rectangles.raw");
+  struct image32 *labeled;
+  while (!(labeled=image_label_regions(im, xmalloc, xrealloc, xfree)));
+  struct darray *regions;
+  set_allocation_success_chance(0.998);
+  while (!(regions=image_extract_regions(im, labeled, xmalloc, xrealloc, xfree)));
+  set_allocation_success_chance(0.5);
+  assert(regions->len == 13);
+  struct darray *rects, *hull, *pairs;
+  while (!(rects=darray_new(0, xfree, xmalloc, xrealloc, xfree)));
+  while (!(hull=darray_new(0, NULL, xmalloc, xrealloc, xfree)));
+  while (!(pairs=darray_new(0, xfree, xmalloc, xrealloc, xfree)));
+  for (unsigned i = 0; i < regions->len; i++) {
+    struct region *region = darray_index(regions, i);
+    do { hull->len = 0; } while (!boundary_convex_hull(region->boundary, hull));
+    struct rectangle *rect;
+    while (!(rect=xmalloc(sizeof(*rect))));
+    hull_minimal_rectangle(hull, region->area, rect);
+    while (!darray_push(rects, rect));
+  }
+  struct pairing_settings settings = {
+    .area_threshold = 100,
+    .rectangularity_threshold = 0.8,
+    .angle_variation_threshold = 0.314,
+    .area_variation_threshold = 0.5,
+    .width_variation_threshold = 0.4,
+    .height_variation_threshold = 0.3,
+    .guard_aspect_min = 3,
+    .guard_aspect_max = 50,
+    .barcode_aspect_min = 0,
+    .barcode_aspect_max = 10
+  };
+  assert(rects->len == 13);
+  struct rectangle *rect1 = darray_index(rects, 0), *rect2 = darray_index(rects, 1),
+                   *rect3 = darray_index(rects, 2), *rect4 = darray_index(rects, 3),
+                   *rect5 = darray_index(rects, 4), *rect6 = darray_index(rects, 5),
+                   *rect7 = darray_index(rects, 6), *rect8 = darray_index(rects, 7),
+                   *rect9 = darray_index(rects, 8), *rect10 = darray_index(rects, 9),
+                   *rect11 = darray_index(rects, 10), *rect12 = darray_index(rects, 11),
+                   *rect13 = darray_index(rects, 12);
+  assert(!rect_qualifies(&settings, rect1));
+  assert(!rect_qualifies(&settings, rect2));
+  assert(!rect_qualifies(&settings, rect3));
+  assert(rect_qualifies(&settings, rect4));
+  assert(!rect_qualifies(&settings, rect5));
+  assert(rect_qualifies(&settings, rect6));
+  assert(rect_qualifies(&settings, rect7));
+  assert(rect_qualifies(&settings, rect8));
+  assert(!rect_qualifies(&settings, rect9));
+  assert(rect_qualifies(&settings, rect10));
+  assert(rect_qualifies(&settings, rect11));
+  assert(!rect_qualifies(&settings, rect12));
+  assert(rect_qualifies(&settings, rect13));
+  while (!pair_aligned_rectangles(&settings, rects, pairs)) {
+    for (unsigned i = 0; i < pairs->len; i++) xfree(darray_index(pairs, i));
+    pairs->len = 0;
+  }
+  assert(pairs->len == 2);
+  struct rectangle_pair *pair1 = darray_index(pairs, 0),
+                        *pair2 = darray_index(pairs, 1);
+  assert(pair1->score > pair2->score);
+  assert(pair1->one->cx == 29 && pair1->one->cy == 66);
+  assert(pair1->two->cx == 152 && pair1->two->cy == 76);
+  assert(pair2->one->cx == 86 && pair2->one->cy == 240);
+  assert(pair2->two->cx == 61 && pair2->two->cy == 177);
+
+  image8_free(im);
+  image32_free(labeled);
+  darray_free(pairs, true);
+  darray_free(rects, true);
   darray_free(regions, true);
   darray_free(hull, false);
   assert_mem_clean();
@@ -286,7 +366,8 @@ int main(void) {
     test_image_follow_contour,
     test_image_extract_regions,
     test_boundary_convex_hull,
-    test_hull_minimal_rectangle
+    test_hull_minimal_rectangle,
+    test_pair_aligned_rectangles
   };
   int num = sizeof(tests) / sizeof(tests[0]);
   run_tests(num, tests);
