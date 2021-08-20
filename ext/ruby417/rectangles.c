@@ -118,7 +118,7 @@ static void hull_minimal_rectangle(struct darray *hull, long fill, struct rectan
       }
 
       // normalize again so that height >= width, orientation is between 0 and pi, and
-      // the orientation is along the height
+      // the orientation is along the width
       if (rect->width > rect->height) {
         int tmp = rect->width;
         rect->width = rect->height;
@@ -222,4 +222,55 @@ static bool pair_aligned_rectangles(struct pairing_settings *settings, struct da
   darray_qsort(pairs, NULL, pair_cmp_by_score);
 
   return true;
+}
+
+static int min_point_by_coords(struct point *points, int count, int k, int l) {
+  int best_index = 0, best_value = points[0].x*k + points[0].y*l;
+  for (int i = 1; i < count; i++) {
+    int value = points[i].x*k + points[i].y*l;
+    if (value < best_value) {
+      best_index = i;
+      best_value = value;
+    }
+  }
+  return best_index;
+}
+
+static void determine_barcode_corners(struct rectangle_pair *pair, struct barcode_corners *corners) {
+  double barcode_orientation = atan2(pair->one->cy-pair->two->cy, pair->one->cx-pair->two->cx);
+  if (barcode_orientation < 0) barcode_orientation += M_PI;
+
+  struct point barcode_center = {
+    .x=pair->one->cx+(pair->two->cx-pair->one->cx)/2,
+    .y=pair->one->cy+(pair->two->cy-pair->one->cy)/2
+  };
+  struct point rectangle_centers[2] = {
+    { .x=pair->one->cx, .y=pair->one->cy },
+    { .x=pair->two->cx, .y=pair->two->cy }
+  };
+  double rectangle_orientations[2] = { pair->one->orientation, pair->two->orientation };
+  struct point transformed[8], rect_points[8] = {
+    { .x=pair->one->cx-(pair->one->width+1)/2, .y=pair->one->cy-(pair->one->height+1)/2 }, // (...+1)/2 reduces rounding errors compared to .../2
+    { .x=pair->one->cx-(pair->one->width+1)/2, .y=pair->one->cy+(pair->one->height+1)/2 },
+    { .x=pair->one->cx+(pair->one->width+1)/2, .y=pair->one->cy+(pair->one->height+1)/2 },
+    { .x=pair->one->cx+(pair->one->width+1)/2, .y=pair->one->cy-(pair->one->height+1)/2 },
+
+    { .x=pair->two->cx-(pair->two->width+1)/2, .y=pair->two->cy-(pair->two->height+1)/2 },
+    { .x=pair->two->cx-(pair->two->width+1)/2, .y=pair->two->cy+(pair->two->height+1)/2 },
+    { .x=pair->two->cx+(pair->two->width+1)/2, .y=pair->two->cy+(pair->two->height+1)/2 },
+    { .x=pair->two->cx+(pair->two->width+1)/2, .y=pair->two->cy-(pair->two->height+1)/2 }
+  };
+  for (int i = 0; i < 8; i++) {
+    // rotate all the points to the correct position
+    point_rotate(&rect_points[i], &rectangle_centers[i/4], rectangle_orientations[i/4], &rect_points[i]);
+    // rotate them again to reverse the overall barcode orientation
+    point_rotate(&rect_points[i], &barcode_center, -barcode_orientation, &transformed[i]);
+    // point_rotate(&transformed[i], &rectangle_centers[i/4], barcode_orientation-rectangle_orientations[i/4], &transformed[i]); // not sure about this
+  }
+
+  // find the corners
+  corners->upper_left = rect_points[min_point_by_coords(transformed, 8, 1, 1)];
+  corners->upper_right = rect_points[min_point_by_coords(transformed, 8, -1, 1)];
+  corners->lower_left = rect_points[min_point_by_coords(transformed, 8, 1, -1)];
+  corners->lower_right = rect_points[min_point_by_coords(transformed, 8, -1, -1)];
 }

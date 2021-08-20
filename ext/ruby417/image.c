@@ -1,3 +1,4 @@
+#include <math.h> // sin, cos
 #include <stdlib.h> // NULL
 #include "image.h"
 
@@ -92,6 +93,12 @@ static struct point *point_new(int x, int y, void *(*malloc)(size_t size)) {
     pt->y = y;
   }
   return pt;
+}
+
+static void point_rotate(struct point *p, struct point *origin, double angle, struct point *out) {
+  int x = p->x, y = p->y;
+  out->x = (int) round(origin->x+(x-origin->x)*cos(angle)-(y-origin->y)*sin(angle));
+  out->y = (int) round(origin->y+(x-origin->x)*sin(angle)+(y-origin->y)*cos(angle));
 }
 
 static struct region *region_new(void *(*malloc)(size_t size),

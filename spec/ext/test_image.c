@@ -94,6 +94,20 @@ void test_point_new(void) {
   fprintf(stderr, "PASS\n");
 }
 
+void test_point_rotate(void) {
+  fprintf(stderr, "Testing point_rotate...");
+
+  struct point p = { .x = 10, .y = 11 },
+               o = { .x = 6, .y = 7 },
+               out;
+  point_rotate(&p, &o, M_PI/4, &out);
+  assert(p.x == 10 && p.y == 11);
+  assert(o.x == 6 && o.y == 7);
+  assert(out.x == 6 && out.y == (int) round(7+4*sqrt(2)));
+
+  fprintf(stderr, "PASS\n");
+}
+
 void test_region_new(void) {
   fprintf(stderr, "Testing region_new...");
 
@@ -259,6 +273,7 @@ int main(void) {
     test_image32_new,
     test_image32_usage,
     test_point_new,
+    test_point_rotate,
     test_region_new,
     test_region_shallow_free,
     test_region_free,

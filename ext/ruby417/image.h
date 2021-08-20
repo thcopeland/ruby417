@@ -41,6 +41,7 @@ static unsigned image32_get(struct image32 *im, int x, int y);
 static unsigned image32_get_with_fallback(struct image32 *im, int x, int y, unsigned fallback);
 
 static struct point *point_new(int x, int y, void *(*malloc)(size_t size));
+static void point_rotate(struct point *p, struct point *origin, double angle, struct point *out);
 static struct region *region_new(void *(*malloc)(size_t size),
                                  void *(*realloc)(void *ptr, size_t new_size),
                                  void (*free)(void *ptr));

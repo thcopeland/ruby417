@@ -29,8 +29,16 @@ struct pairing_settings {
   int barcode_aspect_min, barcode_aspect_max;
 };
 
+struct barcode_corners {
+  struct point upper_left;
+  struct point upper_right;
+  struct point lower_left;
+  struct point lower_right;
+};
+
 static bool boundary_convex_hull(struct darray *boundary, struct darray *hull);
 static void hull_minimal_rectangle(struct darray *hull, long fill, struct rectangle *rect);
 static bool pair_aligned_rectangles(struct pairing_settings *settings, struct darray *rects, struct darray *pairs);
+static void determine_barcode_corners(struct rectangle_pair *pair, struct barcode_corners *corners);
 
 #endif

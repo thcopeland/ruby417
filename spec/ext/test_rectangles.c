@@ -184,11 +184,77 @@ void test_pair_aligned_rectangles(void) {
   fprintf(stderr, "PASS\n");
 }
 
+void test_determine_barcode_corners(void) {
+  fprintf(stderr, "Testing determine_barcode_corners...");
+
+  struct image8 *im = load_image_fixture("256x256_assorted_rectangles.raw");
+  struct image32 *labeled;
+  while (!(labeled=image_label_regions(im, xmalloc, xrealloc, xfree)));
+  struct darray *regions;
+  set_allocation_success_chance(0.998);
+  while (!(regions=image_extract_regions(im, labeled, xmalloc, xrealloc, xfree)));
+  set_allocation_success_chance(0.5);
+  assert(regions->len == 13);
+  struct darray *rects, *hull, *pairs;
+  while (!(rects=darray_new(0, xfree, xmalloc, xrealloc, xfree)));
+  while (!(hull=darray_new(0, NULL, xmalloc, xrealloc, xfree)));
+  while (!(pairs=darray_new(0, xfree, xmalloc, xrealloc, xfree)));
+  for (unsigned i = 0; i < regions->len; i++) {
+    struct region *region = darray_index(regions, i);
+    do { hull->len = 0; } while (!boundary_convex_hull(region->boundary, hull));
+    struct rectangle *rect;
+    while (!(rect=xmalloc(sizeof(*rect))));
+    hull_minimal_rectangle(hull, region->area, rect);
+    while (!darray_push(rects, rect));
+  }
+  struct pairing_settings settings = {
+    .area_threshold = 100,
+    .rectangularity_threshold = 0.8,
+    .angle_variation_threshold = 0.314,
+    .area_variation_threshold = 0.5,
+    .width_variation_threshold = 0.4,
+    .height_variation_threshold = 0.3,
+    .guard_aspect_min = 3,
+    .guard_aspect_max = 50,
+    .barcode_aspect_min = 0,
+    .barcode_aspect_max = 10
+  };
+  while (!pair_aligned_rectangles(&settings, rects, pairs)) {
+    for (unsigned i = 0; i < pairs->len; i++) xfree(darray_index(pairs, i));
+    pairs->len = 0;
+  }
+  struct rectangle_pair *pair1 = darray_index(pairs, 0),
+                        *pair2 = darray_index(pairs, 1);
+  struct barcode_corners corners;
+  determine_barcode_corners(pair1, &corners);
+  assert(corners.upper_left.x == 21 && corners.upper_left.y == 19);
+  assert(corners.lower_left.x == 15 && corners.lower_left.y == 111);
+  assert(corners.lower_right.x == 164 && corners.lower_right.y == 124);
+  assert(corners.upper_right.x == 166 && corners.upper_right.y == 28);
+
+  determine_barcode_corners(pair2, &corners);
+  assert(corners.upper_left.x == 99 && corners.upper_left.y == 148);
+  assert(corners.lower_left.x == 15 && corners.lower_left.y == 190);
+  assert(corners.lower_right.x == 52 && corners.lower_right.y == 259);
+  assert(corners.upper_right.x == 125 && corners.upper_right.y == 240);
+
+  image8_free(im);
+  image32_free(labeled);
+  darray_free(pairs, true);
+  darray_free(rects, true);
+  darray_free(regions, true);
+  darray_free(hull, false);
+  assert_mem_clean();
+
+  fprintf(stderr, "PASS\n");
+}
+
 int main(void) {
   void (*(tests[]))(void) = {
     test_boundary_convex_hull,
     test_hull_minimal_rectangle,
-    test_pair_aligned_rectangles
+    test_pair_aligned_rectangles,
+    test_determine_barcode_corners
   };
   int num = sizeof(tests) / sizeof(tests[0]);
   run_tests(num, tests);
