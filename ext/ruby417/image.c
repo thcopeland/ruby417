@@ -1,5 +1,6 @@
 #include <math.h> // sin, cos
 #include <stdlib.h> // NULL
+#include <stdbool.h>
 #include "image.h"
 
 static struct image8 *image8_new(int width, int height, void *(*malloc)(size_t size), void (*free)(void *ptr)) {

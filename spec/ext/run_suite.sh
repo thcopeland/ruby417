@@ -6,16 +6,13 @@ error () {
 }
 
 egcc () {
-  gcc $@
-
-  if [ $? -ne 0 ]; then
-    error "Compilation failed on $(basename $1)"
-  fi
+  gcc $@ || error "Compilation failed on $(basename $1)"
 }
 
 base_dir="$(dirname $0)/../.."
-source_dir="$base_dir/ext/ruby417"
+source_dir="$base_dir/ext"
 test_dir="$base_dir/spec/ext"
+status=0
 
 echo "Checking source..."
 egcc $source_dir/ruby417.c -Wall -Wextra -fsyntax-only
@@ -29,10 +26,10 @@ egcc $test_dir/test_rectangles.c $flags -o $test_dir/exec_test_rectangles
 echo "Running tests..."
 pushd $test_dir > /dev/null
 for file in exec_*; do
-  ./$file
+  ./$file || status=1
   rm $file
 done
-
 popd > /dev/null
 
 echo "Done."
+exit $status
