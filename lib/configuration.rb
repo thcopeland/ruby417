@@ -46,7 +46,7 @@ module Ruby417
       @configuration ||= Configuration.new
     end
 
-    def config
+    def configure
       yield configuration
     end
   end
