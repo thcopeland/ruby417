@@ -81,6 +81,7 @@ module Ruby417
           end
 
           convert.depth 8
+          # convert.write "preprocessed.png"
           convert << "gray:-"
 
           MiniMagick::Shell.new.run(convert.command)

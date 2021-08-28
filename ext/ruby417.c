@@ -77,11 +77,12 @@ static VALUE locate_via_guards(VALUE self, VALUE im_data, VALUE width, VALUE hei
   };
 
   VALUE located_barcodes = rb_ary_new();
-  struct image32 *labeled = image_label_regions(&image, malloc, realloc, free);
+  struct image32 *labeled;
   struct darray *regions = NULL, *hull = NULL, *rects = NULL, *pairs = NULL;
   struct rectangle *rect;
 
-  if (!(regions=image_extract_regions(&image, labeled, malloc, realloc, free)) ||
+  if (!(labeled=image_label_regions(&image, malloc, realloc, free)) ||
+      !(regions=image_extract_regions(&image, labeled, malloc, realloc, free)) ||
       !(hull=darray_new(0, NULL, malloc, realloc, free)) ||
       !(rects=darray_new(0, free, malloc, realloc, free)) ||
       !(pairs=darray_new(0, free, malloc, realloc, free))) goto oom;

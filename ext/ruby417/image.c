@@ -199,12 +199,14 @@ static struct image32 *image_label_regions(struct image8 *im,
         image32_set(labeled, x, y, label);
       } else {
         image32_set(labeled, x, y, current_label++);
+        uf_union(equivs, current_label, current_label);
       }
     }
   }
 
   for (long z = 0; z < (long)im->width*im->height; z++) {
-    labeled->data[z] = uf_find(equivs, labeled->data[z]);
+    long label = uf_find(equivs, labeled->data[z]);
+    if (label > 0) labeled->data[z] = (unsigned) label;
   }
 
   darray_free(equivs, false);
