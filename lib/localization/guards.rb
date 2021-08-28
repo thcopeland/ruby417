@@ -59,8 +59,8 @@ module Ruby417
             convert.colorspace "Gray"
             convert.normalize
 
-            # try to remove shadows, often unnecessary for clean images
             if config.localization_preprocessing == :full
+              # try to reduce shadows (based on https://legacy.imagemagick.org/Usage/compose/#divide)
               convert.stack do |stack|
                 convert.clone 0
                 convert.sample "25%"
@@ -69,19 +69,17 @@ module Ruby417
               end
               convert.compose "DivideSrc"
               convert.composite
+
+              # remove short vertical features
+              convert.morphology "Close", "3x6: 1,-,1 1,-,1 1,-,1 1,-,1 1,-,1 1,-,1"
+              # remove small features and flaws
+              convert.morphology "Close:3", "Square:1"
             end
 
-            # remove short vertical features
-            convert.morphology "Close", "3x6: 1,-,1 1,-,1 1,-,1 1,-,1 1,-,1 1,-,1"
-            # remove small features and flaws
-            convert.morphology "Close:3", "Square:1" unless config.localization_preprocessing == :half
-
-            convert.auto_threshold "Otsu"
-            convert.negate
+            convert.threshold "50%"
           end
 
           convert.depth 8
-          # convert.write "preprocessed.png"
           convert << "gray:-"
 
           MiniMagick::Shell.new.run(convert.command)
