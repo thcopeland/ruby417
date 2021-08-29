@@ -197,7 +197,7 @@ static double score_rect_pair(struct rectangle *one, struct rectangle *two) {
 static bool pair_aligned_rectangles(struct pairing_settings *settings, struct darray *rects, struct darray *pairs) {
   darray_qsort(rects, NULL, rect_cmp_by_area);
 
-  for (unsigned i = 0; i < rects->len-1; i++) {
+  for (unsigned i = 0; (long) i < (long) rects->len-1; i++) {
     struct rectangle *one = darray_index(rects, i);
     if (!rect_qualifies(settings, one)) continue;
 
